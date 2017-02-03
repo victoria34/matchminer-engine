@@ -1,0 +1,40 @@
+protocol_no: 00-005
+treatment_list:
+  step:
+  - arm:
+    - arm_code: DOSE
+      arm_description: DOSE LEVELS
+      arm_internal_id: 11111
+      arm_suspended: N
+      dose_level:
+      - level_code: '1'
+        level_description: '1: 75 MG BID'
+        level_internal_id: 5
+        level_suspended: N
+        match:
+        - and:
+          - genomic:
+              hugo_symbol: EGFR
+              variant_category: Mutation
+              protein_change: p.L858R
+              exon: 19
+          - clinical:
+              age_numerical: '>=18'
+              oncotree_primary_diagnosis: _SOLID_
+      - level_code: '1'
+        level_description: '1: 75 MG BID'
+        level_internal_id: 6
+        level_suspended: N
+        match:
+        - and:
+          - genomic:
+              hugo_symbol: EGFR
+              variant_category: Mutation
+              protein_change: p.L858R
+              exon: 19
+          - clinical:
+              age_numerical: '>=17'
+              oncotree_primary_diagnosis: _SOLID_
+    step_code: '1'
+    step_internal_id: 11111
+    step_type: Registration

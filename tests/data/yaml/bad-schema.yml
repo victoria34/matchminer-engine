@@ -1,0 +1,206 @@
+age: Adults
+cancer_center_accrual_goal_upper: 64
+data_table4: Interventional
+disease_site_list:
+  disease_site:
+  - disease_site_code: '1'
+    disease_site_name: Lip, Oral Cavity and Pharynx
+  - disease_site_code: '2'
+    disease_site_name: Esophagus
+  - disease_site_code: '3'
+    disease_site_name: Stomach
+  - disease_site_code: '4'
+    disease_site_name: Small Intestine
+  - disease_site_code: '5'
+    disease_site_name: Colon
+  - disease_site_code: '6'
+    disease_site_name: Rectum
+  - disease_site_code: '7'
+    disease_site_name: Anus
+  - disease_site_code: '8'
+    disease_site_name: Liver
+  - disease_site_code: '9'
+    disease_site_name: Pancreas
+  - disease_site_code: '10'
+    disease_site_name: Other Digestive Organ
+  - disease_site_code: '11'
+    disease_site_name: Larynx
+  - disease_site_code: '12'
+    disease_site_name: Lung
+  - disease_site_code: '13'
+    disease_site_name: Other Respiratory and Intrathoracic Organs
+  - disease_site_code: '14'
+    disease_site_name: Bones and Joints
+  - disease_site_code: '15'
+    disease_site_name: Soft Tissue
+  - disease_site_code: '16'
+    disease_site_name: Melanoma, skin
+  - disease_site_code: '17'
+    disease_site_name: Kaposi's sarcoma
+  - disease_site_code: '18'
+    disease_site_name: Mycosis Fungoides
+  - disease_site_code: '19'
+    disease_site_name: Other Skin
+  - disease_site_code: '20'
+    disease_site_name: Breast - Female
+  - disease_site_code: '21'
+    disease_site_name: Breast - Male
+  - disease_site_code: '22'
+    disease_site_name: Cervix Uteri
+  - disease_site_code: '23'
+    disease_site_name: Corpus Uteri
+  - disease_site_code: '24'
+    disease_site_name: Ovary
+  - disease_site_code: '25'
+    disease_site_name: Other Female Genital
+  - disease_site_code: '26'
+    disease_site_name: Prostate
+  - disease_site_code: '27'
+    disease_site_name: Other Male Genital
+  - disease_site_code: '28'
+    disease_site_name: Bladder
+  - disease_site_code: '29'
+    disease_site_name: Kidney
+  - disease_site_code: '30'
+    disease_site_name: Other Urinary
+  - disease_site_code: '31'
+    disease_site_name: Eye and Orbit
+  - disease_site_code: '32'
+    disease_site_name: Brain and Nervous System
+  - disease_site_code: '33'
+    disease_site_name: Thyroid
+  - disease_site_code: '43'
+    disease_site_name: Unknown Sites
+  - disease_site_code: '44'
+    disease_site_name: Ill-Defined Sites
+  - disease_site_code: '34'
+    disease_site_name: Other Endocrine System
+drug_list:
+  drug:
+  - drug_name: DRUG 01
+  - drug_name: DRUG 02
+long_title: LONG TITLE
+management_group_list:
+  management_group:
+  - is_primary: Y
+    management_group_name: GROUP 1
+  - is_primary: N
+    management_group_name: GROUP 2
+  - is_primary: N
+    management_group_name: GROUP 3
+  - is_primary: N
+    management_group_name: GROUP 4
+match:
+- and:
+  - genomic:
+      hugo_symbol: KRAS
+      variant_category: Mutation
+  - clinical:
+      age_numerical: '>=18'
+      disease_status:
+      - Advanced
+      - Metastatic
+      - Unresectable
+      oncotree_primary_diagnosis: _SOLID_
+nct_id: NCTID00000
+nct_link: FAKE LINK
+nct_purpose: FAKE PURPOSE
+oncology_group_list:
+  oncology_group:
+  - group_name: GROUP 5
+    is_primary: N
+  - group_name: GROUP 6
+    is_primary: N
+  - group_name: GROUP 7
+    is_primary: N
+oncpro_link: ONCOPRO LINK
+phase: I/II
+primary_study_contact: PRIMARY CONTACT
+primary_study_contact_email: PRIMARY CONTACT EMAIL
+principal_investigator: PI
+prior_treatment_requirements:
+- None
+program_area_list:
+  program_area:
+  - is_primary: Y
+    program_area_name: PROGRAM 1
+protocol_no: 00-006
+protocol_target_accrual: 1
+protocol_type: Treatment
+short_title: SHORT TITLE
+site_list:
+  site: []
+sponsor_list:
+  sponsor: []
+staff_list:
+  protocol_staff: []
+status: Open to Accrual
+treatment_list:
+  step:
+  - arm:
+    - arm_code: DOSE
+      arm_description: DOSE LEVELS
+      arm_internal_id: 11111
+      arm_suspended: Y
+      dose_level:
+      - level_code: '-XXX1'
+        level_description: 'DESCR 1'
+        level_internal_id: 1111
+        level_suspended: Y
+      - level_code: '-XXX2'
+        level_description: 'DESCR 2'
+        level_internal_id: 2222
+        level_suspended: Y
+      - level_code: '-XXX3'
+        level_description: 'DESCR 3'
+        level_internal_id: 3333
+        level_suspended: Y
+      - level_code: '-XXX4'
+        level_description: 'DESCR 4'
+        level_internal_id: 4444
+        level_suspended: Y
+      - level_code: '-XXX5'
+        level_description: 'DESCR 5'
+        level_internal_id: 5555
+        level_suspended: Y
+      - level_code: '-XXX6'
+        level_description: 'DESCR 6'
+        level_internal_id: 6666
+        level_suspended: Y
+      - level_code: '-XXX7'
+        level_description: 'DESCR 7'
+        level_internal_id: 7777
+        level_suspended: Y
+    step_code: 'Step 1'
+    step_internal_id: 111111
+    step_type: Registration
+  - arm:
+    - arm_code: 'ARM 1'
+      arm_description: 'DESCR 1'
+      arm_internal_id: 11111
+      arm_suspended: N
+      dose_level:
+      - level_code: 'LEVEL 1'
+        level_description: 'DESCR 1'
+        level_internal_id: 111
+        level_suspended: Y
+      - level_code: 'LEVEL 2'
+        level_description: 'DESCR 2'
+        level_internal_id: 222
+        level_suspended: N
+    - arm_code: 'ARM 2'
+      arm_description: 'DESCR 2'
+      arm_internal_id: 22222
+      arm_suspended: Y
+      dose_level:
+      - level_code: 'LEVEL 3'
+        level_description: 'DESCR 3'
+        level_internal_id: 3333
+        level_suspended: Y
+      - level_code: 'LEVEL 4'
+        level_description: 'DESCR 4'
+        level_internal_id: 4444
+        level_suspended: Y
+    step_code: 'STEP 2'
+    step_internal_id: 2222222
+    step_type: Randomization
