@@ -20,6 +20,9 @@ database. To set up the database for matching run the command:
 ```bash
 python manage.py load -t <path to trial.bson> -c <path to clinical.csv> -g <path to genomic.csv> --mongo-uri <your Mongo URI>
 ```
+
+Example clinical and genomic tables are located in the "examples" directory.
+
 You have the option to change the default input file formats.
 Trials can be inserted from yaml files by setting the --yml flag, and
 clinical and genomic data can be inserted from pickle files by setting the --pkl flag.
