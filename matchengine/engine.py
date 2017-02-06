@@ -352,6 +352,7 @@ class MatchEngine(object):
                 node['result'] = set([])
                 node['genomic'] = g.node[successors[0]]['genomic']
                 node['result'].update(g.node[successors[0]]['result'])
+                print '%s: %s' % (node_id, node['result'])
 
                 for i in range(1, len(successors)):
                     s_list = g.node[successors[i]]['result']
@@ -528,7 +529,6 @@ class MatchEngine(object):
         """
 
         # get all matches
-        print 'HERE: %s' % trial_segment['match'][0]
         match_tree = self.create_match_tree(trial_segment['match'][0])
         results, ginfos = self.traverse_match_tree(match_tree)
 
