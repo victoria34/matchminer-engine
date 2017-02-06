@@ -107,7 +107,7 @@ def load(args):
     # Add trials to mongo
     logging.info('Adding trials to mongo...')
     if args.load_yml:
-        yaml_to_mongo(args.load_yml, db)
+        yaml_to_mongo(args.trials, db)
     else:
         cmd = "mongorestore --host localhost:27017 --db matchminer %s" % args.trials
         subprocess.call(cmd.split(' '))
