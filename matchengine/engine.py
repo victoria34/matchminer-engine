@@ -528,6 +528,7 @@ class MatchEngine(object):
         """
 
         # get all matches
+        print 'HERE: %s' % trial_segment['match'][0]
         match_tree = self.create_match_tree(trial_segment['match'][0])
         results, ginfos = self.traverse_match_tree(match_tree)
 
