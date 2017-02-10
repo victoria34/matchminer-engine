@@ -2,8 +2,7 @@
 Clinical trial matching algorithm.
 
 ## Requirements
-MatchEngine requires you to have MongoDB installed and running. All additional
-required python libraries can be installed with
+MatchEngine requires you to have Python 2.7 and MongoDB installed and running. We recommend using virtualenv to create a fresh Python2.7 enviroment, all additional required python libraries can be installed with
 ```bash
 pip install -r requirements.txt
 ```
