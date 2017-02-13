@@ -352,7 +352,6 @@ class MatchEngine(object):
                 node['result'] = set([])
                 node['genomic'] = g.node[successors[0]]['genomic']
                 node['result'].update(g.node[successors[0]]['result'])
-                print '%s: %s' % (node_id, node['result'])
 
                 for i in range(1, len(successors)):
                     s_list = g.node[successors[i]]['result']
