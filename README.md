@@ -71,5 +71,5 @@ python matchengine.py match --mongo-uri $your_mongo_uri
 ```
 
 Default output will be a csv file called "results.csv" in your current working directory.
-You can specify the outpath path and filename of the results by setting the -o flag.
+You can specify the outpath path and filename of the results by setting the -o flag. NOTE: If using -o, please specify output directy AND filename. 
 You can change the file format of the output to json by setting the --json flag.
