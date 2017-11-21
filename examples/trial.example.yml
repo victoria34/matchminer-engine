@@ -1,0 +1,22 @@
+protocol_no: 00-000
+treatment_list:
+  step:
+  - arm:
+    - arm_code: A
+      arm_description: 'Example Arm A'
+      arm_internal_id: 1
+      arm_suspended: N
+      dose_level: []
+      match:
+        - and:
+          - clinical:
+              oncotree_primary_diagnosis: Breast
+              age_numerical: '>=18'
+          - or:
+            - genomic:
+                hugo_symbol: PIK3CA
+                variant_category: Mutation
+                protein_change: p.H1047R
+            - genomic:
+                hugo_symbol: TP53
+                variant_category: Mutation
