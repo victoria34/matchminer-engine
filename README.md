@@ -17,7 +17,7 @@ https://docs.mongodb.com/manual/administration/install-community/
 MatchEngine matches clinical and genomic data to clinical trials in a Mongo
 database. To set up the database for matching run the command:
 ```bash
-python matchengine.py load -t examples/trial.example.bson -c examples/clinical.example.csv -g examples/clinical.example.csv --mongo-uri $your_mongo_uri
+python matchengine.py load -t examples/trial.example.bson -c examples/clinical.example.csv -g examples/genomic.example.csv --mongo-uri $your_mongo_uri
 ```
 
 Example trial, clinical and genomic tables are located in the "examples" directory.
