@@ -8,7 +8,8 @@ import logging
 import argparse
 import subprocess
 import pandas as pd
-from dateutil.parser import parse
+import datetime as dt
+from rfc822 import formatdate
 from pymongo import ASCENDING
 
 from matchengine.engine import MatchEngine
@@ -28,7 +29,7 @@ def load(args):
     """
     Sets up MongoDB for matching
 
-    :param clinical: Path to csv file containing clinical data. Required fields are:
+    :param args: clinical: Path to csv file containing clinical data. Required fields are:
         - DFCI_MRN (Unique patient identifier)
         - SAMPLE_ID (Unique sample identifier)
         - ONCOTREE_PRIMARY_DIAGNOSIS_NAME (Disease diagnosis)
@@ -40,8 +41,9 @@ def load(args):
         - REPORT_DATE
         - VITAL_STATUS (alive or deceased)
         - FIRST_LAST (Patient's first and last name)
+        - GENDER (Male or Female)
 
-    :param genomic: Path to csv file containing genomic data. The following fields are used in matching:
+    :param args: genomic: Path to csv file containing genomic data. The following fields are used in matching:
         - SAMPLE_ID (Unique sample identifier)
         - TRUE_HUGO_SYMBOL (Gene name)
         - TRUE_PROTEIN_CHANGE (Specific variant)
@@ -60,7 +62,7 @@ def load(args):
         - ALLELE_FRACTION <float>
         - TIER <integer>
 
-    :param trials: Path to bson trial file.
+    :param args: trials: Path to bson trial file.
     """
 
     db = get_db(args.mongo_uri)
@@ -69,17 +71,32 @@ def load(args):
     logging.info('Reading data into pandas...')
     if args.pkl:
         clinical_df = pd.read_pickle(args.clinical)
-        clinical_df.BIRTH_DATE = clinical_df.BIRTH_DATE.apply(lambda x: str(x))
         genomic_df = pd.read_pickle(args.genomic)
     else:
         clinical_df = pd.read_csv(args.clinical)
         genomic_df = pd.read_csv(args.genomic, low_memory=False)
 
+    # reformatting
+    for col in ['BIRTH_DATE', 'REPORT_DATE']:
+        try:
+            clinical_df[col] = clinical_df[col].apply(lambda x: dt.datetime.strftime(x, '%Y-%m-%d'))
+        except ValueError as exc:
+            if col == 'BIRTH_DATE':
+                print '## WARNING ## Birth dates should be formatted %Y-%m-%d to be properly stored in MongoDB.'
+                print '##         ## Birth dates may be malformed in the database and will therefore not match'
+                print '##         ## trial age restrictions properly.'
+                print '##         ## System error: \n%s' % exc
+
+    genomic_df['TRUE_TRANSCRIPT_EXON'] = genomic_df['TRUE_TRANSCRIPT_EXON'].apply(
+        lambda x: int(x) if x != '' and pd.notnull(x) else x)
+
     # Add clinical data to mongo
     logging.info('Adding clinical data to mongo...')
     clinical_json = json.loads(clinical_df.T.to_json()).values()
-    clinical_json = list(map(
-        lambda x: {k: parse(v) if k == "BIRTH_DATE" else v for k, v in x.iteritems()}, clinical_json))
+    for item in clinical_json:
+        for col in ['BIRTH_DATE', 'REPORT_DATE']:
+            if col in item:
+                item[col] = dt.datetime.strptime(item[col], '%Y-%m-%d')
     db.clinical.insert(clinical_json)
 
     # Get clinical ids from mongo
@@ -132,20 +149,26 @@ def yaml_to_mongo(yml, db):
             ymlpath = os.path.join(yml, y)
 
             # only add files of extension ".yml"
-            if yml.split('.')[-1] != 'yml':
+            if ymlpath.split('.')[-1] != 'yml':
                 continue
 
             # convert yml to json format
-            with open(ymlpath) as f:
-                t = yaml.load(f.read())
-
-                # add trial to db
-                result = db.trial.insert_one(t)
-
+            add_trial(ymlpath, db)
     else:
-        with open(yml) as f:
-            t = yaml.load(f.read())
-            db.trial.insert_one(t)
+        add_trial(yml, db)
+
+
+def add_trial(yml, db):
+    """
+    Adds file in YAML format to MongoDB
+
+    :param yml: Path to file
+    :param db: MongoDB connection
+    """
+
+    with open(yml) as f:
+        t = yaml.load(f.read())
+        db.trial.insert_one(t)
 
 
 def export_results(file_format, outpath):
