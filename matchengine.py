@@ -79,7 +79,7 @@ def load(args):
     # reformatting
     for col in ['BIRTH_DATE', 'REPORT_DATE']:
         try:
-            clinical_df[col] = clinical_df[col].apply(lambda x: dt.datetime.strftime(x, '%Y-%m-%d'))
+            clinical_df[col] = clinical_df[col].apply(lambda x: str(dt.datetime.strptime(x, '%Y-%m-%d')))
         except ValueError as exc:
             if col == 'BIRTH_DATE':
                 print '## WARNING ## Birth dates should be formatted %Y-%m-%d to be properly stored in MongoDB.'
@@ -96,7 +96,7 @@ def load(args):
     for item in clinical_json:
         for col in ['BIRTH_DATE', 'REPORT_DATE']:
             if col in item:
-                item[col] = dt.datetime.strptime(item[col], '%Y-%m-%d')
+                item[col] = dt.datetime.strptime(str(item[col]), '%Y-%m-%d %X')
     db.clinical.insert(clinical_json)
 
     # Get clinical ids from mongo
