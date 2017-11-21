@@ -15,7 +15,7 @@ class TestGenomic(TestSetUp):
         self.db.genomic.drop()
 
     def _assert(self, key, val, num, neg):
-        g, check_neg = self.me.prepare_genomic_criteria({key: val})
+        g, check_neg, _ = self.me.prepare_genomic_criteria({key: val})
         num_found = len(list(self.db.genomic.find(g)))
         assert num_found == num, '%s found with query %s' % (num_found, g)
         assert check_neg is neg
@@ -34,7 +34,7 @@ class TestGenomic(TestSetUp):
 
         # match no mutation in exon 13
         item = {'exon': 13, 'variant_category': '!Mutation'}
-        g, neg = self.me.prepare_genomic_criteria(item)
+        g, neg, _ = self.me.prepare_genomic_criteria(item)
         num_found = list(self.db.genomic.find(g))
         assert neg is True
         assert len(num_found) == 1, len(num_found)
@@ -87,3 +87,14 @@ class TestGenomic(TestSetUp):
         self._assert('cnv_call', 'Homozygous Deletion', 1, False)
         self._assert('cnv_call', 'Heterozygous Deletion', 1, False)
         self._assert('cnv_call', 'Gain', 1, False)
+
+    def test_build_mmr_status(self):
+
+        self.db.genomic.drop()
+        self.add_msi()
+
+        self._assert('mmr_status', 'MMR-Proficient', 1, False)
+        self._assert('mmr_status', 'MMR-Deficient', 1, False)
+        self._assert('ms_status', 'MSI-H', 1, False)
+        self._assert('ms_status', 'MSI-L', 1, False)
+        self._assert('ms_status', 'MSS', 1, False)

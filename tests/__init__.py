@@ -55,13 +55,18 @@ class TestSetUp(unittest.TestCase):
         self.mrns = [self.mrn] + [self.__random_id() for _ in range(9)]
         self.sample_ids = [self.sample_id] + [self.__random_id() for _ in range(9)]
         self.clinical_ids = [self.clinical_id] + [ObjectId() for _ in range(9)]
-        self.static_date = dt.datetime.today().replace(year=2016, month=11, day=3)
+        self.static_date = dt.datetime.today()
 
         # clinical collection
         self.oncotree_diagnoses = ['Adrenal Gland'] + ['Melanoma'] * 5 + ['Glioblastoma'] * 4
         self.genders = ['Female'] * 5 + ['Male'] * 5
-        self.ages = [self.static_date.replace(year=1997)] * 5 + [self.static_date.replace(year=2010)] * 4 + \
-                    [self.static_date.replace(month=9)]
+
+        # ages
+        adult = self.static_date - dt.timedelta(days=365*19)
+        child = self.static_date - dt.timedelta(days=365*10)
+        infant = self.static_date - dt.timedelta(days=30*4)
+        self.ages = [adult] * 5 + [child] * 4 + [infant]
+
         self.clinical = [{
             '_id': clinical_id,
             'ONCOTREE_PRIMARY_DIAGNOSIS_NAME': diagnosis,
@@ -129,6 +134,26 @@ class TestSetUp(unittest.TestCase):
     def add_genomic(self):
         """Add all genomic documents to database needed for unit tests"""
         self.db.genomic.insert_many(self.genomic)
+
+    def add_genomic_v2(self):
+        """Adds a genomic with OncoPanel layout version 2"""
+        genomic = {
+            'TRUE_VARIANT_CLASSIFICATION': None,
+            'TRUE_PROTEIN_CHANGE': None,
+            'VARIANT_CATEGORY': 'CNV',
+            'CHROMOSOME': None,
+            'POSITION': None,
+            'TRUE_STRAND': None,
+            'WILDTYPE': False,
+            'CLINICAL_ID': ObjectId(),
+            'CNV_CALL': 'Heterozygous deletion',
+            'TRUE_HUGO_SYMBOL': 'WHSC1',
+            'SAMPLE_ID': 'FAKE-01',
+            'TRUE_TRANSCRIPT_EXON': None,
+            'ACTIONABILITY': 'actionable',
+            'MMR_STATUS': 'Proficient (MMR-P / MSS)'
+        }
+        self.db.genomic.insert(genomic)
 
     def add_genomic_for_exon_mutation(self):
         """
@@ -235,6 +260,120 @@ class TestSetUp(unittest.TestCase):
         })
 
         self.db.genomic.insert_many(g)
+
+    def add_msi(self):
+
+        clinical_ids = [ObjectId() for _ in range(3)]
+        mmr_statuses = ['Proficient (MMR-P / MSS)', 'Deficient (MMR-D / MSI-H)', 'Indeterminate (see note)']
+        sample_ids = ['1', '2', '3']
+        g = [{
+            'TRUE_VARIANT_CLASSIFICATION': None,
+            'TRUE_PROTEIN_CHANGE': None,
+            'VARIANT_CATEGORY': 'SIGNATURE',
+            'CHROMOSOME': None,
+            'POSITION': None,
+            'TRUE_STRAND': None,
+            'WILDTYPE': False,
+            'CLINICAL_ID': _id,
+            'CNV_CALL': None,
+            'TRUE_HUGO_SYMBOL': None,
+            'SAMPLE_ID': sample_id,
+            'TRUE_TRANSCRIPT_EXON': 13,
+            'MMR_STATUS': mmr
+        } for _id, sample_id, mmr in zip(clinical_ids, sample_ids, mmr_statuses)]
+        self.db.genomic.insert_many(g)
+
+    @staticmethod
+    def get_demo_trial_matches():
+
+        trial_match = {
+            "code": "1",
+            "match_type": "variant",
+            "vital_status": "alive",
+            "true_cdna_change": "c.1799T>A",
+            "sample_id": "111",
+            "chromosome": "1",
+            "oncotree_primary_diagnosis_name": "Cutaneous Melanoma",
+            "internal_id": "01",
+            "true_variant_classification": "Missense_Mutation",
+            "ord_physician_name": "FAKE PHYSICIAN",
+            "ord_physician_email": "fake_physician@fake.fake",
+            "variant_category": "MUTATION",
+            "protocol_no": "111-000",
+            "wildtype": False,
+            "canonical_strand": "-",
+            "first_last": "FIRST LAST",
+            "true_hugo_symbol": "BRAF",
+            "trial_accrual_status": "open",
+            "match_level": "step",
+            "tier": 1,
+            "allele_fraction": 0.38,
+            "genomic_alteration": "BRAF p.V600E",
+            "gender": "Female",
+            "reference_allele": "A",
+            "mrn": "111",
+            "true_protein_change": "p.V600E",
+            "true_transcript_exon": 15,
+            "position": 140453136,
+            "cnv_call": None,
+            "actionability": None,
+            "mmr_status": None,
+            "cancer_type_match": "specific",
+            "coordinating_center": "Dana-Farber Cancer Institute"
+        }
+        tm1 = trial_match.copy()
+        tm2 = trial_match.copy()
+        tm3 = trial_match.copy()
+        tm4 = trial_match.copy()
+        tm5 = trial_match.copy()
+        tm6 = trial_match.copy()
+        tm7 = trial_match.copy()
+        tm8 = trial_match.copy()
+        tm9 = trial_match.copy()
+        tm10 = trial_match.copy()
+        tm11 = trial_match.copy()
+        tm12 = trial_match.copy()
+        tm13 = trial_match.copy()
+        tm14 = trial_match.copy()
+
+        tm2['actionability'] = "actionable"
+        tm2['tier'] = 4
+        tm3['variant_category'] = "CNV"
+        tm3['tier'] = None
+        tm4['tier'] = 2
+        tm5['tier'] = 3
+        tm6['tier'] = 4
+        tm7['match_type'] = 'gene'
+        tm8['cancer_type_match'] = 'all_solid'
+        tm9['coordinating_center'] = 'Massachussetts General Hospital'
+        tm10['protocol_no'] = '11-111'
+        tm11['mmr_status'] = 'Deficient (MMR-D / MSI-H)'
+        tm12['wildtype'] = True
+        tm12['tier'] = None
+        tm13['genomic_alteration'] = ' Structural Variation'
+        tm13['true_hugo_symbol'] = None
+        tm14['tier'] = None
+        tm14['mmr_status'] = None
+        tm14['variant_category'] = None
+        tm14['wildtype'] = None
+        tm14['clinical_only'] = True
+
+        tm2['protocol_no'] = '222-000'
+        tm3['protocol_no'] = '333-000'
+        tm4['protocol_no'] = '444-000'
+        tm5['protocol_no'] = '555-000'
+        tm6['protocol_no'] = '666-000'
+        tm7['protocol_no'] = '777-000'
+        tm8['protocol_no'] = '888-000'
+        tm9['protocol_no'] = '999-000'
+        tm10['protocol_no'] = '000-000'
+        tm11['protocol_no'] = '0001-000'
+        tm12['protocol_no'] = '0002-000'
+        tm13['protocol_no'] = '0003-000'
+        tm14['protocol_no'] = '0004-000'
+
+        trial_matches = [tm1, tm2, tm3, tm4, tm5, tm6, tm7, tm8, tm9, tm10, tm11, tm12, tm13, tm14]
+        return trial_matches
 
     @staticmethod
     def __random_id():

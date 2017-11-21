@@ -113,6 +113,12 @@ class TestMatchEngine(TestSetUp):
         assert len(result) == 9, len(result)
         assert self.sample_id not in result
 
+        self.add_genomic_v2()
+        node = {'type': 'genomic', 'value': {'HUGO_SYMBOL': 'WHSC1'}}
+        result, matches = self.me.run_query(node)
+        assert 'actionability' in matches[0]
+        assert matches[0]['mmr_status'] == 'Proficient (MMR-P / MSS)'
+
     def test_prepare_clinical_criteria(self):
 
         onc = 'ONCOTREE_PRIMARY_DIAGNOSIS'
@@ -159,7 +165,7 @@ class TestMatchEngine(TestSetUp):
         item = {'HUGO_SYMBOL': '!KRAS', 'PROTEIN_CHANGE': 'p.V600E'}
 
         # convert to mongo query
-        c, neg = self.me.prepare_genomic_criteria(item)
+        c, neg, _ = self.me.prepare_genomic_criteria(item)
 
         # check ! symbol
         assert c['$and'][0]['TRUE_HUGO_SYMBOL']['$eq'] == 'KRAS'
@@ -167,6 +173,21 @@ class TestMatchEngine(TestSetUp):
 
         # check protein change
         assert c['$and'][0]['TRUE_PROTEIN_CHANGE']['$eq'] == 'p.V600E'
+
+        # check wildtype
+        assert '$or' in c['$and'][1], c
+        assert c['$and'][1]['$or'] == [{'WILDTYPE': False}, {'WILDTYPE': {'$exists': False}}]
+
+    def test_sv(self):
+
+        # create a genomic criteria
+        item = {'HUGO_SYMBOL': 'KRAS', 'VARIANT_CATEGORY': 'SV'}
+
+        # convert to mongo query
+        c, neg, _ = self.me.prepare_genomic_criteria(item)
+
+        # check sv
+        assert c['$and'][0]['VARIANT_CATEGORY']['$eq'] == 'SV'
 
         # check wildtype
         assert '$or' in c['$and'][1], c

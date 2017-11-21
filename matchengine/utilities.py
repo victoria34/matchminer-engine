@@ -1,15 +1,17 @@
 """Copyright 2016 Dana-Farber Cancer Institute"""
 
+import re
 import os
 import sys
 import yaml
 import json
 import logging
+import pandas as pd
 import datetime as dt
 from pymongo import MongoClient
 
 import oncotreenx
-from matchengine.settings import months, TUMOR_TREE
+from matchengine.settings import months, TUMOR_TREE, mmr_map, mmr_map_rev
 
 
 def build_gquery(field, txt):
@@ -17,9 +19,19 @@ def build_gquery(field, txt):
 
     # unless instructed otherwise, construct a positive query
     neg = False
+    sv = False
+
+    # Structural variants
+    if field.lower() == 'variant_category' and txt in ['SV', '!SV']:
+        sv = True
+
+    # MMR and MS Status
+    if field.lower() == 'mmr_status' or field.lower() == 'ms_status':
+        key = '$eq'
+        txt = mmr_map[txt]
 
     # Wildcard Protein Change
-    if field.lower() == 'wildcard_protein_change':
+    elif field.lower() == 'wildcard_protein_change':
 
         # Negative queries will be run as positive queries and the matched sample ids will be subtracted from
         # the set of all sample ids in the database
@@ -39,10 +51,6 @@ def build_gquery(field, txt):
         txt = ['MUTATION', 'CNV']
         key = '$in'
 
-    # Remove structural variants
-    elif field.lower() == 'variant_category' and txt in ['SV', '!SV']:
-        return None, None, None
-
     # Not equal to given value
     elif (isinstance(txt, str) and txt.startswith('!')) or (isinstance(txt, unicode) and txt.startswith('!')):
         key = '$eq'
@@ -58,7 +66,7 @@ def build_gquery(field, txt):
     else:
         key = '$eq'
 
-    return key, txt, neg
+    return key, txt, neg, sv
 
 
 def build_cquery(c, norm_field, txt):
@@ -208,6 +216,11 @@ def get_months(abs_age, today):
     if today.month - month <= 0:
         month = months.index(months[-(abs(today.month - month))])
         year = -(year + 1)
+    else:
+        month = today.month - month
+
+    if month == 0:
+        month = 1
 
     return month, year
 
@@ -250,6 +263,7 @@ def format_genomic_alteration(g, query):
     var = 'TRUE_VARIANT_CLASSIFICATION'
     sv = 'VARIANT_CATEGORY'
     wt = 'WILDTYPE'
+    mmr = 'MMR_STATUS'
 
     alteration = ''
     is_variant = 'gene'
@@ -285,6 +299,10 @@ def format_genomic_alteration(g, query):
     # add structural variation
     elif sv in g and g[sv] == 'SV':
         alteration += ' Structural Variation'
+
+    # add mutational signtature
+    elif sv in g and g[sv] == 'SIGNATURE' and mmr in g and g[mmr] is not None:
+        alteration += mmr_map_rev[g[mmr]]
 
     return alteration, is_variant
 
@@ -355,13 +373,23 @@ def format_query(g, gene=False):
     return alteration
 
 
-def add_matches(trial_matches, db):
+def add_matches(trial_matches_df, db):
     """Add the match table to the database or update what already exists theres"""
 
-    # replace match collection
-    if trial_matches:
+    if 'clinical_id' in trial_matches_df.columns:
+        trial_matches_df['clinical_id'] = trial_matches_df['clinical_id'].apply(lambda x: str(x))
+
+    if 'genomic_id' in trial_matches_df.columns:
+        trial_matches_df['genomic_id'] = trial_matches_df['genomic_id'].apply(lambda x: str(x))
+
+    if 'report_date' in trial_matches_df.columns:
+        trial_matches_df['report_date'] = trial_matches_df['report_date'].apply(
+            lambda x: dt.datetime.strftime(x, '%Y-%m-%d %X'))
+
+    if len(trial_matches_df.index) > 0:
+        records = json.loads(trial_matches_df.T.to_json()).values()
         db.trial_match.drop()
-        db.trial_match.insert_many(trial_matches)
+        db.trial_match.insert_many(records)
 
 
 def get_db(uri):
@@ -397,3 +425,98 @@ def get_db(uri):
         connection = MongoClient(MONGO_URI)
         return connection["matchminer"]
 
+
+def get_structural_variants(g):
+    """
+    Performs a string search for the structural variant.
+
+    :param g: Genomic query in
+    :return: Genomic query out
+    """
+
+    # get the genes.
+    hugo = g['TRUE_HUGO_SYMBOL']
+    k = hugo.keys()[0]
+    genes = hugo[k]
+
+    if not isinstance(genes, list):
+        genes = [genes]
+
+    # TODO add synonyms
+
+    # encode as full search criteria.
+    sv_clauses = []
+    for gene in genes:
+        abc = "(.*\W{0}\W.*)|(^{0}\W.*)|(.*\W{0}$)".format(gene)
+        sv_clauses.append(re.compile(abc, re.IGNORECASE))
+
+    # add it to filter and remove gene criteria.
+    del g['TRUE_HUGO_SYMBOL']
+    g['STRUCTURAL_VARIANT_COMMENT'] = {"$in": sv_clauses}
+
+    return g
+
+
+def clean_query_for_msi(g):
+    if 'MMR_STATUS' in g and 'TRUE_HUGO_SYMBOL' in g:
+        del g['TRUE_HUGO_SYMBOL']
+    return g
+
+
+def get_cancer_type_match(trial):
+    """
+    Determines if the trial has criteria to match all solid or all liquid tumors in it.
+
+    :param trial: Entire trial object
+    :return: cancer_type_match
+    """
+
+    if '_summary' not in trial or 'tumor_types' not in trial['_summary']:
+        return 'unknown'
+
+    if '_SOLID_' in trial['_summary']['tumor_types']:
+        return 'all_solid'
+    elif '_LIQUID_' in trial['_summary']['tumor_types']:
+        return 'all_liquid'
+    else:
+        return 'specific'
+
+
+def get_coordinating_center(trial):
+    """
+    Returns the trials' coordinating center
+
+    :param trial: Entire trial object
+    """
+
+    if '_summary' not in trial or 'coordinating_center' not in trial['_summary']:
+        return 'unknown'
+    else:
+        return trial['_summary']['coordinating_center']
+
+
+def check_for_genomic_node(g, node_id=1):
+    """
+    Recursively iterates down a networkx graph containing a trial's
+    match information, checking for genomic node types.
+
+    :param g: Networkx graph
+    :param node_id: ID of the current node. Default starts with the base node.
+    :return: True or False: True means a genomic node exists in the graph; False means none exists.
+    """
+
+    current_node = g.node[node_id]
+
+    if current_node['type'] == 'genomic':
+        return True
+
+    if current_node['type'] in ['and', 'or']:
+        children = g.successors(node_id)
+
+        for child_node_id in children:
+            has_genomic_nodes = check_for_genomic_node(g, node_id=child_node_id)
+
+            if has_genomic_nodes:
+                return has_genomic_nodes
+
+    return False

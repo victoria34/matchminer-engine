@@ -39,7 +39,7 @@ class TestMatch(TestSetUp):
         }
 
         # turn each trial criterium into a mongo query
-        g, _ = self.me.prepare_genomic_criteria(match['and'][0]['genomic'])
+        g, _, _ = self.me.prepare_genomic_criteria(match['and'][0]['genomic'])
         c = self.me.prepare_clinical_criteria(match['and'][1]['clinical'])
 
         # check for matching patients by "SAMPLE_ID" manually
@@ -59,7 +59,7 @@ class TestMatch(TestSetUp):
         match = data['treatment_list']['step'][0]['arm'][0]['dose_level'][0]['match'][0]
 
         # turn each trial criterium into a mongo query
-        g1, _ = self.me.prepare_genomic_criteria(match['and'][0]['genomic'])
+        g1, _, _ = self.me.prepare_genomic_criteria(match['and'][0]['genomic'])
         c1 = self.me.prepare_clinical_criteria(match['and'][1]['or'][0]['clinical'])
         c2 = self.me.prepare_clinical_criteria(match['and'][1]['or'][1]['clinical'])
         c3 = self.me.prepare_clinical_criteria(match['and'][1]['or'][2]['clinical'])
