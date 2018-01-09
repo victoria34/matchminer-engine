@@ -1,6 +1,7 @@
 """Copyright 2016 Dana-Farber Cancer Institute"""
 
 import os
+import sys
 import json
 import time
 import yaml
@@ -67,71 +68,77 @@ def load(args):
 
     db = get_db(args.mongo_uri)
 
-    # csv -> pd
-    logging.info('Reading data into pandas...')
-    if args.pkl:
-        clinical_df = pd.read_pickle(args.clinical)
-        genomic_df = pd.read_pickle(args.genomic)
-    else:
-        clinical_df = pd.read_csv(args.clinical)
-        genomic_df = pd.read_csv(args.genomic, low_memory=False)
-
-    # reformatting
-    for col in ['BIRTH_DATE', 'REPORT_DATE']:
-        try:
-            clinical_df[col] = clinical_df[col].apply(lambda x: str(dt.datetime.strptime(x, '%Y-%m-%d')))
-        except ValueError as exc:
-            if col == 'BIRTH_DATE':
-                print '## WARNING ## Birth dates should be formatted %Y-%m-%d to be properly stored in MongoDB.'
-                print '##         ## Birth dates may be malformed in the database and will therefore not match'
-                print '##         ## trial age restrictions properly.'
-                print '##         ## System error: \n%s' % exc
-
-    genomic_df['TRUE_TRANSCRIPT_EXON'] = genomic_df['TRUE_TRANSCRIPT_EXON'].apply(
-        lambda x: int(x) if x != '' and pd.notnull(x) else x)
-
-    # Add clinical data to mongo
-    logging.info('Adding clinical data to mongo...')
-    clinical_json = json.loads(clinical_df.T.to_json()).values()
-    for item in clinical_json:
-        for col in ['BIRTH_DATE', 'REPORT_DATE']:
-            if col in item:
-                item[col] = dt.datetime.strptime(str(item[col]), '%Y-%m-%d %X')
-    db.clinical.insert(clinical_json)
-
-    # Get clinical ids from mongo
-    logging.info('Adding clinical ids to genomic data...')
-    clinical_doc = list(db.clinical.find({}, {"_id": 1, "SAMPLE_ID": 1}))
-    clinical_dict = dict(zip([i['SAMPLE_ID'] for i in clinical_doc], [i['_id'] for i in clinical_doc]))
-
-    # pd -> json
-    if args.pkl:
-        genomic_json = json.loads(genomic_df.to_json(orient='records'))
-    else:
-        genomic_json = json.loads(genomic_df.T.to_json()).values()
-
-    # Map clinical ids to genomic data
-    for item in genomic_json:
-        if item['SAMPLE_ID'] in clinical_dict:
-            item["CLINICAL_ID"] = clinical_dict[item['SAMPLE_ID']]
-        else:
-            item["CLINICAL_ID"] = None
-
-    # Add genomic data to mongo
-    logging.info('Adding genomic data to mongo...')
-    db.genomic.insert(genomic_json)
-
     # Add trials to mongo
-    logging.info('Adding trials to mongo...')
-    if args.load_yml:
-        yaml_to_mongo(args.trials, db)
-    else:
-        cmd = "mongorestore --host localhost:27017 --db matchminer %s" % args.trials
-        subprocess.call(cmd.split(' '))
+    if args.trials:
+        logging.info('Adding trials to mongo...')
+        if args.load_yml:
+            yaml_to_mongo(args.trials, db)
+        else:
+            cmd = "mongorestore --host localhost:27017 --db matchminer %s" % args.trials
+            subprocess.call(cmd.split(' '))
 
-    # Create index
-    logging.info('Creating index...')
-    db.genomic.create_index([("TRUE_HUGO_SYMBOL", ASCENDING), ("WILDTYPE", ASCENDING)])
+    # csv -> pd
+    if args.clinical and args.genomic:
+        logging.info('Reading data into pandas...')
+        if args.pkl:
+            clinical_df = pd.read_pickle(args.clinical)
+            genomic_df = pd.read_pickle(args.genomic)
+        else:
+            clinical_df = pd.read_csv(args.clinical)
+            genomic_df = pd.read_csv(args.genomic, low_memory=False)
+
+        # reformatting
+        for col in ['BIRTH_DATE', 'REPORT_DATE']:
+            try:
+                clinical_df[col] = clinical_df[col].apply(lambda x: str(dt.datetime.strptime(x, '%Y-%m-%d')))
+            except ValueError as exc:
+                if col == 'BIRTH_DATE':
+                    print '## WARNING ## Birth dates should be formatted %Y-%m-%d to be properly stored in MongoDB.'
+                    print '##         ## Birth dates may be malformed in the database and will therefore not match'
+                    print '##         ## trial age restrictions properly.'
+                    print '##         ## System error: \n%s' % exc
+
+        genomic_df['TRUE_TRANSCRIPT_EXON'] = genomic_df['TRUE_TRANSCRIPT_EXON'].apply(
+            lambda x: int(x) if x != '' and pd.notnull(x) else x)
+
+        # Add clinical data to mongo
+        logging.info('Adding clinical data to mongo...')
+        clinical_json = json.loads(clinical_df.T.to_json()).values()
+        for item in clinical_json:
+            for col in ['BIRTH_DATE', 'REPORT_DATE']:
+                if col in item:
+                    item[col] = dt.datetime.strptime(str(item[col]), '%Y-%m-%d %X')
+        db.clinical.insert(clinical_json)
+
+        # Get clinical ids from mongo
+        logging.info('Adding clinical ids to genomic data...')
+        clinical_doc = list(db.clinical.find({}, {"_id": 1, "SAMPLE_ID": 1}))
+        clinical_dict = dict(zip([i['SAMPLE_ID'] for i in clinical_doc], [i['_id'] for i in clinical_doc]))
+
+        # pd -> json
+        if args.pkl:
+            genomic_json = json.loads(genomic_df.to_json(orient='records'))
+        else:
+            genomic_json = json.loads(genomic_df.T.to_json()).values()
+
+        # Map clinical ids to genomic data
+        for item in genomic_json:
+            if item['SAMPLE_ID'] in clinical_dict:
+                item["CLINICAL_ID"] = clinical_dict[item['SAMPLE_ID']]
+            else:
+                item["CLINICAL_ID"] = None
+
+        # Add genomic data to mongo
+        logging.info('Adding genomic data to mongo...')
+        db.genomic.insert(genomic_json)
+
+        # Create index
+        logging.info('Creating index...')
+        db.genomic.create_index([("TRUE_HUGO_SYMBOL", ASCENDING), ("WILDTYPE", ASCENDING)])
+
+    elif args.clinical and not args.genomic or args.genomic and not args.clinical:
+        logging.error('If loading patient information, please provide both clinical and genomic data.')
+        sys.exit(1)
 
 
 def yaml_to_mongo(yml, db):
@@ -242,9 +249,9 @@ if __name__ == '__main__':
 
     # load
     subp_p = subp.add_parser('load', help='Sets up your MongoDB for matching.')
-    subp_p.add_argument('-t', dest='trials', required=True, help=param_trials_help)
-    subp_p.add_argument('-c', dest='clinical', required=True, help=param_clinical_help)
-    subp_p.add_argument('-g', dest='genomic', required=True, help=param_genomic_help)
+    subp_p.add_argument('-t', dest='trials', help=param_trials_help)
+    subp_p.add_argument('-c', dest='clinical', help=param_clinical_help)
+    subp_p.add_argument('-g', dest='genomic', help=param_genomic_help)
     subp_p.add_argument('--mongo-uri', dest='mongo_uri', required=False, default=None, help=param_mongo_uri_help)
     subp_p.add_argument('--yml', dest='load_yml', action='store_true', help=param_load_yml_help)
     subp_p.add_argument('--pkl', dest='pkl', action='store_true', help=param_pkl_help)
