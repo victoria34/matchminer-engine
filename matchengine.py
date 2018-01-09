@@ -1,5 +1,7 @@
 """Copyright 2016 Dana-Farber Cancer Institute"""
 
+# todo write project synopsis here
+
 import os
 import sys
 import json
@@ -256,6 +258,10 @@ if __name__ == '__main__':
     subp_p.add_argument('--yml', dest='load_yml', action='store_true', help=param_load_yml_help)
     subp_p.add_argument('--pkl', dest='pkl', action='store_true', help=param_pkl_help)
     subp_p.set_defaults(func=load)
+
+    # todo default should be yml. json should be an option
+    # todo should be like --trial-format yml,json,bson
+    # todo should be like --patient-format csv,pkl,json,bson
 
     # match
     subp_p = subp.add_parser('match', help='Matches all trials in database to patients')

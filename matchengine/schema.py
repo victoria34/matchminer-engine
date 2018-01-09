@@ -88,8 +88,8 @@ yaml_genomic_schema = {
     'variant_category': {
         'type': 'string',
         'required': True,
-        'allowed': ['Mutation', 'Copy Number Variation', 'Structural Variation', 'Any Variation',
-                    '!Mutation', '!Copy Number Variation', '!Structural Variation']
+        'allowed': ['Mutation', 'Copy Number Variation', 'Structural Variation', 'Any Variation', 'Signature',
+                    '!Mutation', '!Copy Number Variation', '!Structural Variation', '!Signature']
     },
     'wildtype': {
         'type': 'boolean',
