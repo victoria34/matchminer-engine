@@ -18,7 +18,7 @@ from matchengine.utilities import get_db
 
 MONGO_URI = ""
 MONGO_DBNAME = "matchminer"
-MATCH_FIELDS = "mrn,sample_id,first_last,protocol_no,genomic_alteration,tier,match_type," \
+MATCH_FIELDS = "mrn,sample_id,first_last,protocol_no,nct_id,genomic_alteration,tier,match_type," \
                "trial_accrual_status,match_level,code,internal_id,ord_physician_name,ord_physician_email," \
                "vital_status,oncotree_primary_diagnosis_name,true_hugo_symbol,true_protein_change," \
                "true_variant_classification,variant_category,report_date,chromosome,position," \
