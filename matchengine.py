@@ -10,7 +10,6 @@ import argparse
 import subprocess
 import pandas as pd
 import datetime as dt
-from rfc822 import formatdate
 from pymongo import ASCENDING
 
 from matchengine.engine import MatchEngine
@@ -18,12 +17,101 @@ from matchengine.utilities import get_db
 
 MONGO_URI = ""
 MONGO_DBNAME = "matchminer"
-MATCH_FIELDS = "mrn,sample_id,first_last,protocol_no,genomic_alteration,tier,match_type," \
+MATCH_FIELDS = "mrn,sample_id,first_last,protocol_no,nct_id,genomic_alteration,tier,match_type," \
                "trial_accrual_status,match_level,code,internal_id,ord_physician_name,ord_physician_email," \
                "vital_status,oncotree_primary_diagnosis_name,true_hugo_symbol,true_protein_change," \
                "true_variant_classification,variant_category,report_date,chromosome,position," \
                "true_cdna_change,reference_allele,true_transcript_exon,canonical_strand,allele_fraction," \
                "cnv_call,wildtype,_id"
+
+
+class Trial:
+
+    def __init__(self, db):
+
+        self.db = db
+        self.load_dict = {
+            'yml': self.yaml_to_mongo,
+            'bson': self.bson_to_mongo,
+            'json': self.json_to_mongo
+        }
+
+    def yaml_to_mongo(self, yml):
+        """
+        If you specify the path to a directory, all files with extension YML will be added to MongoDB.
+        If you specify the path to a specific YML file, it will add that file to MongoDB.
+
+        :param yml: Path to YML file.
+        """
+
+        # search directory for ymls
+        if os.path.isdir(yml):
+            for y in os.listdir(yml):
+                ymlpath = os.path.join(yml, y)
+
+                # only add files of extension ".yml"
+                if ymlpath.split('.')[-1] != 'yml':
+                    continue
+
+                # convert yml to json format
+                add_trial(ymlpath, self.db)
+        else:
+            add_trial(yml, self.db)
+
+    @staticmethod
+    def bson_to_mongo(bson):
+        """
+        If you specify the path to a directory, all files with extension BSON will be added to MongoDB.
+        If you specify the path to a specific BSON file, it will add that file to MongoDB.
+
+        :param bson: Path to BSON file.
+        """
+        cmd = "mongorestore --host localhost:27017 --db matchminer %s" % bson
+        subprocess.call(cmd.split(' '))
+
+    @staticmethod
+    def json_to_mongo(json):
+        """
+        If you specify the path to a directory, all files with extension JSON will be added to MongoDB.
+        If you specify the path to a specific JSON file, it will add that file to MongoDB.
+
+        :param json: Path to JSON file.
+        """
+        cmd = "mongoimport --host localhost:27017 --db matchminer --collection %s" % json
+        subprocess.call(cmd.split(' '))
+
+
+class Patient:
+
+    def __init__(self, db):
+
+        self.db = db
+        self.load_dict = {
+            'csv': self.load_csv,
+            'pkl': self.load_pkl,
+            'bson': self.load_bson
+        }
+        self.clinical_df = None
+        self.genomic_df = None
+
+    def load_csv(self, clinical, genomic):
+        """Load CSV file into a Pandas dataframe"""
+        self.clinical_df = pd.read_csv(clinical)
+        self.genomic_df = pd.read_csv(genomic, low_memory=False)
+
+    def load_pkl(self, clinical, genomic):
+        """Load PKL file into a Pandas dataframe"""
+        self.clinical_df = pd.read_pickle(clinical)
+        self.genomic_df = pd.read_pickle(genomic)
+
+    @staticmethod
+    def load_bson(clinical, genomic):
+        """Load bson file into MongoDB"""
+        cmd1 = "mongorestore --host localhost:27017 --db matchminer %s" % clinical
+        cmd2 = "mongorestore --host localhost:27017 --db matchminer %s" % genomic
+        subprocess.call(cmd1.split(' '))
+        subprocess.call(cmd2.split(' '))
+        return True
 
 
 def load(args):
@@ -67,70 +155,66 @@ def load(args):
     """
 
     db = get_db(args.mongo_uri)
+    t = Trial(db)
+    p = Patient(db)
 
     # Add trials to mongo
     if args.trials:
         logging.info('Adding trials to mongo...')
-        if args.load_yml:
-            yaml_to_mongo(args.trials, db)
-        else:
-            cmd = "mongorestore --host localhost:27017 --db matchminer %s" % args.trials
-            subprocess.call(cmd.split(' '))
+        t.load_dict[args.trial_format](args.trials)
 
-    # csv -> pd
+    # Add patient data to mongo
     if args.clinical and args.genomic:
         logging.info('Reading data into pandas...')
-        if args.pkl:
-            clinical_df = pd.read_pickle(args.clinical)
-            genomic_df = pd.read_pickle(args.genomic)
-        else:
-            clinical_df = pd.read_csv(args.clinical)
-            genomic_df = pd.read_csv(args.genomic, low_memory=False)
+        is_bson = p.load_dict[args.patient_format](args.clinical, args.genomic)
 
-        # reformatting
-        for col in ['BIRTH_DATE', 'REPORT_DATE']:
-            try:
-                clinical_df[col] = clinical_df[col].apply(lambda x: str(dt.datetime.strptime(x, '%Y-%m-%d')))
-            except ValueError as exc:
-                if col == 'BIRTH_DATE':
-                    print '## WARNING ## Birth dates should be formatted %Y-%m-%d to be properly stored in MongoDB.'
-                    print '##         ## Birth dates may be malformed in the database and will therefore not match'
-                    print '##         ## trial age restrictions properly.'
-                    print '##         ## System error: \n%s' % exc
+        if not is_bson:
 
-        genomic_df['TRUE_TRANSCRIPT_EXON'] = genomic_df['TRUE_TRANSCRIPT_EXON'].apply(
-            lambda x: int(x) if x != '' and pd.notnull(x) else x)
-
-        # Add clinical data to mongo
-        logging.info('Adding clinical data to mongo...')
-        clinical_json = json.loads(clinical_df.T.to_json()).values()
-        for item in clinical_json:
+            # reformatting
             for col in ['BIRTH_DATE', 'REPORT_DATE']:
-                if col in item:
-                    item[col] = dt.datetime.strptime(str(item[col]), '%Y-%m-%d %X')
-        db.clinical.insert(clinical_json)
+                try:
+                    p.clinical_df[col] = p.clinical_df[col].apply(lambda x: str(dt.datetime.strptime(x, '%Y-%m-%d')))
+                except ValueError as exc:
+                    if col == 'BIRTH_DATE':
+                        print '## WARNING ## Birth dates should be formatted %Y-%m-%d to be properly stored in MongoDB.'
+                        print '##         ## Birth dates may be malformed in the database and will therefore not match'
+                        print '##         ## trial age restrictions properly.'
+                        print '##         ## System error: \n%s' % exc
 
-        # Get clinical ids from mongo
-        logging.info('Adding clinical ids to genomic data...')
-        clinical_doc = list(db.clinical.find({}, {"_id": 1, "SAMPLE_ID": 1}))
-        clinical_dict = dict(zip([i['SAMPLE_ID'] for i in clinical_doc], [i['_id'] for i in clinical_doc]))
+            p.genomic_df['TRUE_TRANSCRIPT_EXON'] = p.genomic_df['TRUE_TRANSCRIPT_EXON'].apply(
+                lambda x: int(x) if x != '' and pd.notnull(x) else x)
 
-        # pd -> json
-        if args.pkl:
-            genomic_json = json.loads(genomic_df.to_json(orient='records'))
-        else:
-            genomic_json = json.loads(genomic_df.T.to_json()).values()
+            # Add clinical data to mongo
+            logging.info('Adding clinical data to mongo...')
+            clinical_json = json.loads(p.clinical_df.T.to_json()).values()
+            for item in clinical_json:
+                for col in ['BIRTH_DATE', 'REPORT_DATE']:
+                    if col in item:
+                        item[col] = dt.datetime.strptime(str(item[col]), '%Y-%m-%d %X')
 
-        # Map clinical ids to genomic data
-        for item in genomic_json:
-            if item['SAMPLE_ID'] in clinical_dict:
-                item["CLINICAL_ID"] = clinical_dict[item['SAMPLE_ID']]
+            db.clinical.insert(clinical_json)
+
+            # Get clinical ids from mongo
+            logging.info('Adding clinical ids to genomic data...')
+            clinical_doc = list(db.clinical.find({}, {"_id": 1, "SAMPLE_ID": 1}))
+            clinical_dict = dict(zip([i['SAMPLE_ID'] for i in clinical_doc], [i['_id'] for i in clinical_doc]))
+
+            # pd -> json
+            if args.trial_format == 'pkl':
+                genomic_json = json.loads(p.genomic_df.to_json(orient='records'))
             else:
-                item["CLINICAL_ID"] = None
+                genomic_json = json.loads(p.genomic_df.T.to_json()).values()
 
-        # Add genomic data to mongo
-        logging.info('Adding genomic data to mongo...')
-        db.genomic.insert(genomic_json)
+            # Map clinical ids to genomic data
+            for item in genomic_json:
+                if item['SAMPLE_ID'] in clinical_dict:
+                    item["CLINICAL_ID"] = clinical_dict[item['SAMPLE_ID']]
+                else:
+                    item["CLINICAL_ID"] = None
+
+            # Add genomic data to mongo
+            logging.info('Adding genomic data to mongo...')
+            db.genomic.insert(genomic_json)
 
         # Create index
         logging.info('Creating index...')
@@ -139,30 +223,6 @@ def load(args):
     elif args.clinical and not args.genomic or args.genomic and not args.clinical:
         logging.error('If loading patient information, please provide both clinical and genomic data.')
         sys.exit(1)
-
-
-def yaml_to_mongo(yml, db):
-    """
-    If you specify the path to a directory, all files with extension ".yml" will be added to MongoDB.
-    If you specify the path to a speific .yml file, it will add that file to MongoDB.
-
-    :param yml: Path to .yml file.
-    :param db: MongoDB connector
-    """
-
-    # search directory for ymls
-    if os.path.isdir(yml):
-        for y in os.listdir(yml):
-            ymlpath = os.path.join(yml, y)
-
-            # only add files of extension ".yml"
-            if ymlpath.split('.')[-1] != 'yml':
-                continue
-
-            # convert yml to json format
-            add_trial(ymlpath, db)
-    else:
-        add_trial(yml, db)
 
 
 def add_trial(yml, db):
@@ -226,22 +286,19 @@ def match(args):
 
 if __name__ == '__main__':
 
-    param_trials_help = 'Path to your trial .bson file. Alternatively, this path can point to a specific .yml ' \
-                        'file or a directory containing .yml files by also setting the --yml flag.'
+    param_trials_help = 'Path to your trial data file or a directory containing a file for each trial.' \
+                        'Default expected format is YML.'
     param_mongo_uri_help = 'Your MongoDB URI. If you do not supply one it will default to whatever is set to ' \
-                           '"MONGO_URI" in your secrets file.'
-    param_load_yml_help = 'Boolean flag, defaults to false. Include this flag to load your trials into MongoDB from' \
-                          ' .yml files instead of .bson.'
+                           '"MONGO_URI" in your secrets file. ' \
+                           'See https://docs.mongodb.com/manual/reference/connection-string/ for more information.'
     param_daemon_help = 'Set to launch the matchengine as a nightly automated process'
-    param_clinical_help = 'Path to your clinical .csv file. Alternatively, this path can point to a .pkl file ' \
-                          'by also setting the --pkl flag. This will apply to both clinical and genomic data.'
-    param_genomic_help = 'Path to your genomic .csv file. Alternatively, this path can point to a .pkl file ' \
-                         'by also setting the --pkl flag. This will apply to both clinical and genomic data.'
-    param_pkl_help = 'Boolean flag, defaults to false. Include this flag to load your clinical and genomic ' \
-                      'data into MongoDB from .pkl files instead of .csv.'
+    param_clinical_help = 'Path to your clinical file. Default expected format is CSV.'
+    param_genomic_help = 'Path to your genomic file. Default expected format is CSV'
     param_json_help = 'Set this flag to export your results in a .json file.'
     param_csv_help = 'Set this flag to export your results in a .csv file. Default.'
     param_outpath_help = 'Destination and name of your results file.'
+    param_trial_format_help = 'File format of input trial data. Default is YML.'
+    param_patient_format_help = 'File format of input patient data (both clinical and genomic files). Default is CSV.'
 
     # mode parser.
     main_p = argparse.ArgumentParser()
@@ -253,8 +310,18 @@ if __name__ == '__main__':
     subp_p.add_argument('-c', dest='clinical', help=param_clinical_help)
     subp_p.add_argument('-g', dest='genomic', help=param_genomic_help)
     subp_p.add_argument('--mongo-uri', dest='mongo_uri', required=False, default=None, help=param_mongo_uri_help)
-    subp_p.add_argument('--yml', dest='load_yml', action='store_true', help=param_load_yml_help)
-    subp_p.add_argument('--pkl', dest='pkl', action='store_true', help=param_pkl_help)
+    subp_p.add_argument('--trial-format',
+                        dest='trial_format',
+                        default='yml',
+                        action='store',
+                        choices=['yml', 'json', 'bson'],
+                        help=param_trial_format_help)
+    subp_p.add_argument('--patient-format',
+                        dest='patient_format',
+                        default='csv',
+                        action='store',
+                        choices=['csv', 'pkl', 'bson'],
+                        help=param_patient_format_help)
     subp_p.set_defaults(func=load)
 
     # match

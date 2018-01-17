@@ -511,7 +511,7 @@ class MatchEngine(object):
 
         # all MRNs and trials in the database
         mrns = self.db.clinical.distinct('DFCI_MRN')
-        proj = {'protocol_no': 1, 'treatment_list': 1, '_summary': 1}
+        proj = {'protocol_no': 1, 'nct_id': 1, 'treatment_list': 1, '_summary': 1}
         all_trials = list(self.db.trial.find({}, proj))
 
         # create a map between sample id and MRN
@@ -597,11 +597,15 @@ class MatchEngine(object):
                 # add match document
                 match = alteration
                 match['mrn'] = mrn_map[alteration['sample_id']]
-                match['protocol_no'] = trial['protocol_no']
                 match['match_level'] = match_segment
                 match['trial_accrual_status'] = trial_status
                 match['cancer_type_match'] = get_cancer_type_match(trial)
                 match['coordinating_center'] = get_coordinating_center(trial)
+
+                trial_keys = ['protocol_no', 'nct_id']
+                for trial_key in trial_keys:
+                    if trial_key in trial.keys():
+                        match[trial_key] = trial[trial_key]
 
                 # copy clinical document
                 if clinical:

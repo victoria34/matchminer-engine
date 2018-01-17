@@ -88,8 +88,8 @@ yaml_genomic_schema = {
     'variant_category': {
         'type': 'string',
         'required': True,
-        'allowed': ['Mutation', 'Copy Number Variation', 'Structural Variation', 'Any Variation',
-                    '!Mutation', '!Copy Number Variation', '!Structural Variation']
+        'allowed': ['Mutation', 'Copy Number Variation', 'Structural Variation', 'Any Variation', 'Signature',
+                    '!Mutation', '!Copy Number Variation', '!Structural Variation', '!Signature']
     },
     'wildtype': {
         'type': 'boolean',
@@ -112,7 +112,7 @@ yaml_genomic_schema = {
         'type': 'string',
         'required': False,
         'allowed': ['In_Frame_Del', 'In_Frame_Ins', 'Missense_Mutation', 'Nonsense_Mutation', 'Nonstop_Mutation',
-                    'Del_Ins', 'Frameshift', 'Frame_Shift_Del','Frame_Shift_Ins', 'Frameshift_mutation',
+                    'Del_Ins', 'Frameshift', 'Frame_Shift_Del', 'Frame_Shift_Ins', 'Frameshift_mutation',
                     'Inframe_Indel', 'Initiator_Codon', 'Intron', 'intron', 'Intron_mutation',
                     'Missense and Splice_Region', 'RNA', 'Silent', 'Splice_Acceptor', 'Splice_Donor', 'Splice_Region',
                     'Splice_Site', 'Splice_Lost', 'Translation_Start_Site', 'coding_sequence', 'intergenic_variant',

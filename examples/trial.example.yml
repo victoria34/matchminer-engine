@@ -1,4 +1,5 @@
 protocol_no: 00-000
+nct_id: NCT000
 treatment_list:
   step:
   - arm:
