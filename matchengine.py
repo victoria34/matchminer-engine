@@ -1,8 +1,5 @@
 """Copyright 2016 Dana-Farber Cancer Institute"""
 
-# todo write project synopsis here
-# todo apscheduler
-
 import os
 import sys
 import json
