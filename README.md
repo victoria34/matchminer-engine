@@ -112,10 +112,11 @@ To import example data run:
 python matchengine.py load -t examples/trial.example.yml -c examples/clinical.example.csv -g examples/genomic.example.csv --mongo-uri ${your_mongo_uri}
 ```
 
+* By default, `load` inserts the data into a database named `matchminer`.
 * For more information on linking your Mongo URI please see these [docs](https://docs.mongodb.com/manual/reference/connection-string/).
   For default mongo shell configurations this will likely be `mongodb://localhost:27017`
-* Default trial file format is YML. To change this specify `--trial-format [yml,json,bson]`
-* Default clinical file format is CSV. To change this specify `--trial-format [csv,pkl,json,bson]`
+* Default trial file format is YML. To change this specify `--trial-format {yml,json,bson}`
+* Default clinical file format is CSV. To change this specify `--trial-format {csv,pkl,bson}`
 
     
 ##### Step 2: Matching
