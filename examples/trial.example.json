@@ -1,0 +1,49 @@
+{
+  "protocol_no": "00-000",
+  "nct_id": "NCT001",
+  "treatment_list": {
+    "step": [
+      {
+        "arm": [
+          {
+            "arm_code": "A",
+            "arm_description": "Example Arm A",
+            "arm_suspended": "N",
+            "dose_level": [],
+            "match": [
+              {
+                "and": [
+                  {
+                    "clinical": {
+                      "age_numerical": ">=18",
+                      "oncotree_primary_diagnosis": "Breast"
+                    }
+                  },
+                  {
+                    "or": [
+                      {
+                        "genomic": {
+                          "hugo_symbol": "PIK3CA",
+                          "oncokb_variant": "p.H1047R",
+                          "variant_category": "Mutation",
+                          "protein_change": "p.H1047R"
+                        }
+                      },
+                      {
+                        "genomic" : {
+                          "hugo_symbol": "TP53",
+                          "variant_category": "Mutation"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "arm_internal_id" : 1
+          }
+        ]
+      }
+    ]
+  }
+}
