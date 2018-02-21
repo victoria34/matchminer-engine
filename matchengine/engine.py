@@ -316,16 +316,15 @@ class MatchEngine(object):
     def oncokb_match(self, conditions):
         """
         Runs genomic query based on 'oncokb_variant' against Mongo database and returns a set of sample ids that matched
-
         :param conditions: query conditions, value of genomic node with the trial match tree
         :param db: database connection
-
         :returns
             matched_sample_ids: set of matched sample ids
             matched_genomic_info: genomic information regarding each match
         """
         results = []
         matched_genomic_info = []
+        matched_hugo_results = list()
         hugo_symbol = conditions['hugo_symbol']
         oncokb_variant = conditions['oncokb_variant']
         negative_query = False
@@ -350,10 +349,16 @@ class MatchEngine(object):
             'SAMPLE_ID': 1,
             'TRUE_HUGO_SYMBOL': 1,
             'ONCOKB_VARIANT': 1,
-            '_id': 1
+            '_id': 1,
+            'ONCOKB_GENOMIC_ID': 1
         }
 
-        matched_hugo_results = list(self.db.genomic.find(query, proj))
+        if self.query :
+            # match trial for queried genomic data
+            matched_hugo_results = list(self.db.new_genomic.find(query, proj))
+        else:
+            matched_hugo_results = list(self.db.genomic.find(query, proj))
+
         # iterate 'oncokb_variant' list
         for genomic_item in matched_hugo_results:
             if "ONCOKB_VARIANT" in genomic_item and genomic_item["ONCOKB_VARIANT"] and oncokb_variant in genomic_item["ONCOKB_VARIANT"]:
@@ -365,7 +370,8 @@ class MatchEngine(object):
             matched_genomic_info = [{
                 'sample_id': sample_id,
                 'match_type': 'oncokb_variant',
-                'genomic_alteration': "!" + hugo_symbol + " " + "!" + oncokb_variant
+                'genomic_alteration': "!" + hugo_symbol + " " + "!" + oncokb_variant,
+                "oncokb_variant": "!" + oncokb_variant
             } for sample_id in matched_sample_ids]
         else:
             matched_sample_ids = set(item['SAMPLE_ID'] for item in results)
