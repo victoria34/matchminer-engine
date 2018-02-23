@@ -316,8 +316,10 @@ class MatchEngine(object):
     def oncokb_match(self, conditions):
         """
         Runs genomic query based on 'oncokb_variant' against Mongo database and returns a set of sample ids that matched
+
         :param conditions: query conditions, value of genomic node with the trial match tree
         :param db: database connection
+
         :returns
             matched_sample_ids: set of matched sample ids
             matched_genomic_info: genomic information regarding each match
@@ -414,7 +416,7 @@ class MatchEngine(object):
 
             # check if "item" can run general_match(). "hugo_symbol" is required for any match method
             general_map_keys = ["variant_category", "protein_change", "wildcard_protein_change",
-                    "variant_classification", "exon", "cnv_call", "wildtype", "mmr_status", "ms_status"]
+                                "variant_classification", "exon", "cnv_call", "wildtype", "mmr_status", "ms_status"]
 
             for key in item.keys():
                 # run general_match when any key appears in general_key_map and its value is not null.
@@ -425,6 +427,7 @@ class MatchEngine(object):
 
             if 'oncokb_variant' in item and item['oncokb_variant']:
                 oncokb_matched_sample_ids, oncokb_matched_genomic_info = self.oncokb_match(item)
+
                 # check if general_match() has been run
                 if run_general_match:
                     matched_sample_ids.intersection(oncokb_matched_sample_ids)
@@ -452,7 +455,10 @@ class MatchEngine(object):
             if len(c.keys()) == 0:
                 matched_sample_ids = list()
             else:
-                matched_sample_ids = set(self.db.clinical.find(c).distinct('SAMPLE_ID'))
+                if self.query:
+                    matched_sample_ids = set(self.db.new_clinical.find(c).distinct('SAMPLE_ID'))
+                else:
+                    matched_sample_ids = set(self.db.clinical.find(c).distinct('SAMPLE_ID'))
 
         else:
             logging.info("bad match tree")
