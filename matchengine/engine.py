@@ -3,6 +3,7 @@
 from cerberus1 import schema_registry
 import networkx as nx
 import logging
+import copy
 
 from matchengine import schema
 from matchengine.validation import ConsentValidatorCerberus
@@ -219,6 +220,171 @@ class MatchEngine(object):
         # return the tree.
         return 0, G
 
+    def general_match(self, conditions):
+        """
+        Runs genomic query based on general matching criteria against Mongo database and returns a set of sample ids that matched
+
+        :param conditions: query conditions, value of genomic node with the trial match tree
+        :param db: database connection
+
+        :returns
+            matched_sample_ids: set of matched sample ids
+            matched_genomic_info: genomic information regarding each match
+        """
+        matched_genomic_info = []
+        # prepare genomic criteria
+        g, neg, sv = self.prepare_genomic_criteria(conditions)
+
+        # execute match
+        if len(g.keys()) == 0:
+            matched_sample_ids = list()
+        else:
+
+            if neg:
+                proj = {'SAMPLE_ID': 1}     # speeds up query
+            else:
+                proj = {
+                    'SAMPLE_ID': 1,
+                    'TRUE_HUGO_SYMBOL': 1,
+                    'TRUE_PROTEIN_CHANGE': 1,
+                    'TRUE_VARIANT_CLASSIFICATION': 1,
+                    'VARIANT_CATEGORY': 1,
+                    'CNV_CALL': 1,
+                    'WILDTYPE': 1,
+                    'CHROMOSOME': 1,
+                    'POSITION': 1,
+                    'TRUE_CDNA_CHANGE': 1,
+                    'REFERENCE_ALLELE': 1,
+                    'TRUE_TRANSCRIPT_EXON': 1,
+                    'CANONICAL_STRAND': 1,
+                    'ALLELE_FRACTION': 1,
+                    'TIER': 1,
+                    'CLINICAL_ID': 1,
+                    'MMR_STATUS': 1,
+                    'ACTIONABILITY': 1,
+                    '_id': 1
+                }
+
+                # record pathologist's chromosomal rearrangement comment for downstream manual analysis
+                if sv:
+                    proj['STRUCTURAL_VARIANT_COMMENT'] = 1
+
+            results = list(self.db.genomic.find(g, proj))
+
+            # if a negative query was match, the formatted genomic alteration will reflect the trial criteria
+            # and the genomic information will not be copied into the trial_match document
+            if neg:
+
+                # If the yaml criterium was negative, then subtract the matched results from the total set
+                matched_sample_ids = self.all_match - set(x['SAMPLE_ID']for x in results)
+                alteration, is_variant = format_not_match(g)
+
+                # add genomic alterations per sample id
+                matched_genomic_info = [{
+                    'sample_id': sample_id,
+                    'match_type': is_variant,
+                    'genomic_alteration': alteration
+                } for sample_id in matched_sample_ids]
+
+            else:
+                for item in results:
+
+                    # format the genomic alteration that matched
+                    alteration, is_variant = format_genomic_alteration(item, g)
+
+                    # add genomic information and alterations that matched per sample id
+                    genomic_info = {
+                        'match_type': is_variant,
+                        'genomic_alteration': alteration
+                    }
+
+                    # copy genomic document projection into match
+                    for field in proj:
+                        if field in item:
+                            if field == '_id':
+                                genomic_info['genomic_id'] = item[field]
+                            else:
+                                genomic_info[field.lower()] = item[field]
+
+                    # add unique matches by sample id
+                    matched_genomic_info.append(genomic_info)
+
+                matched_sample_ids = set(item['SAMPLE_ID'] for item in results)
+
+        return matched_sample_ids, matched_genomic_info
+
+    def oncokb_match(self, conditions):
+        """
+        Runs genomic query based on 'oncokb_variant' against Mongo database and returns a set of sample ids that matched
+
+        :param conditions: query conditions, value of genomic node with the trial match tree
+        :param db: database connection
+
+        :returns
+            matched_sample_ids: set of matched sample ids
+            matched_genomic_info: genomic information regarding each match
+        """
+        results = []
+        matched_genomic_info = []
+        hugo_symbol = conditions['hugo_symbol']
+        oncokb_variant = conditions['oncokb_variant']
+        negative_query = False
+
+        # Negative queries will be run as positive queries and the matched sample ids will be subtracted from
+        # the set of all sample ids in the database
+        if hugo_symbol.startswith('!'):
+            negative_query = True
+            # remove "!"
+            hugo_symbol = hugo_symbol[1:]
+
+        if oncokb_variant.startswith('!'):
+            negative_query = True
+            # remove "!"
+            oncokb_variant = oncokb_variant[1:]
+
+        # run OncoKB match criteria
+        query = {
+            'TRUE_HUGO_SYMBOL': hugo_symbol
+        }
+        proj = {
+            'SAMPLE_ID': 1,
+            'TRUE_HUGO_SYMBOL': 1,
+            'ONCOKB_VARIANT': 1,
+            '_id': 1
+        }
+
+        matched_hugo_results = list(self.db.genomic.find(query, proj))
+        # iterate 'oncokb_variant' list
+        for genomic_item in matched_hugo_results:
+            if "ONCOKB_VARIANT" in genomic_item and genomic_item["ONCOKB_VARIANT"] and oncokb_variant in genomic_item["ONCOKB_VARIANT"]:
+                results.append(genomic_item)
+
+        if negative_query:
+            matched_sample_ids = self.all_match - set(x['SAMPLE_ID']for x in results)
+            # add genomic alterations per sample id
+            matched_genomic_info = [{
+                'sample_id': sample_id,
+                'match_type': 'oncokb_variant',
+                'genomic_alteration': "!" + hugo_symbol + " " + "!" + oncokb_variant
+            } for sample_id in matched_sample_ids]
+        else:
+            matched_sample_ids = set(item['SAMPLE_ID'] for item in results)
+
+            for item in results:
+                genomic_info = {
+                    'match_type': 'oncokb_variant',
+                    'genomic_alteration': hugo_symbol + " " + oncokb_variant
+                }
+                for field in proj:
+                    if field in item:
+                        if field == '_id':
+                            genomic_info['genomic_id'] = item[field]
+                        else:
+                            genomic_info[field.lower()] = item[field]
+                matched_genomic_info.append(genomic_info)
+
+        return matched_sample_ids, matched_genomic_info
+
     def run_query(self, node):
         """
         Runs genomic or clinical query against Mongo database and returns a set of sample ids that matched
@@ -231,91 +397,42 @@ class MatchEngine(object):
             matched_genomic_info: genomic information regarding each match
         """
 
-        matched_genomic_info = []
+        matched_genomic_info = list()
+        matched_sample_ids = set()
+        run_general_match = False
 
         # execute query against genomic table
         if node['type'] == 'genomic':
-
             item = node['value']
+            item_deepcopy = copy.deepcopy(item)
 
-            # prepare genomic criteria
-            g, neg, sv = self.prepare_genomic_criteria(item)
+            # check if "item" can run general_match(). "hugo_symbol" is required for any match method
+            general_map_keys = ["variant_category", "protein_change", "wildcard_protein_change",
+                    "variant_classification", "exon", "cnv_call", "wildtype", "mmr_status", "ms_status"]
 
-            # execute match
-            if len(g.keys()) == 0:
-                matched_sample_ids = list()
-            else:
+            for key in item.keys():
+                # run general_match when any key appears in general_key_map and its value is not null.
+                if key in general_map_keys and item[key] and 'hugo_symbol' in item and item['hugo_symbol']:
+                    matched_sample_ids, matched_genomic_info = self.general_match(item_deepcopy)
+                    run_general_match = True
+                    break
 
-                if neg:
-                    proj = {'SAMPLE_ID': 1}     # speeds up query
+            if 'oncokb_variant' in item and item['oncokb_variant']:
+                oncokb_matched_sample_ids, oncokb_matched_genomic_info = self.oncokb_match(item)
+                # check if general_match() has been run
+                if run_general_match:
+                    matched_sample_ids.intersection(oncokb_matched_sample_ids)
+                    if len(matched_sample_ids) > 0:
+                        temp_matched_genomic_info = list()
+                        for genomic_info in oncokb_matched_genomic_info:
+                            if genomic_info['sample_id'] in matched_sample_ids:
+                                temp_matched_genomic_info.append(genomic_info)
+                        matched_genomic_info = temp_matched_genomic_info
+                    else:
+                        matched_genomic_info = list()
                 else:
-                    proj = {
-                        'SAMPLE_ID': 1,
-                        'TRUE_HUGO_SYMBOL': 1,
-                        'TRUE_PROTEIN_CHANGE': 1,
-                        'TRUE_VARIANT_CLASSIFICATION': 1,
-                        'VARIANT_CATEGORY': 1,
-                        'CNV_CALL': 1,
-                        'WILDTYPE': 1,
-                        'CHROMOSOME': 1,
-                        'POSITION': 1,
-                        'TRUE_CDNA_CHANGE': 1,
-                        'REFERENCE_ALLELE': 1,
-                        'TRUE_TRANSCRIPT_EXON': 1,
-                        'CANONICAL_STRAND': 1,
-                        'ALLELE_FRACTION': 1,
-                        'TIER': 1,
-                        'CLINICAL_ID': 1,
-                        'MMR_STATUS': 1,
-                        'ACTIONABILITY': 1,
-                        '_id': 1
-                    }
-
-                    # record pathologist's chromosomal rearrangement comment for downstream manual analysis
-                    if sv:
-                        proj['STRUCTURAL_VARIANT_COMMENT'] = 1
-
-                results = list(self.db.genomic.find(g, proj))
-
-                # if a negative query was match, the formatted genomic alteration will reflect the trial criteria
-                # and the genomic information will not be copied into the trial_match document
-                if neg:
-
-                    # If the yaml criterium was negative, then subtract the matched results from the total set
-                    matched_sample_ids = self.all_match - set(x['SAMPLE_ID']for x in results)
-                    alteration, is_variant = format_not_match(g)
-
-                    # add genomic alterations per sample id
-                    matched_genomic_info = [{
-                        'sample_id': sample_id,
-                        'match_type': is_variant,
-                        'genomic_alteration': alteration
-                    } for sample_id in matched_sample_ids]
-
-                else:
-                    for item in results:
-
-                        # format the genomic alteration that matched
-                        alteration, is_variant = format_genomic_alteration(item, g)
-
-                        # add genomic information and alterations that matched per sample id
-                        genomic_info = {
-                            'match_type': is_variant,
-                            'genomic_alteration': alteration
-                        }
-
-                        # copy genomic document projection into match
-                        for field in proj:
-                            if field in item:
-                                if field == '_id':
-                                    genomic_info['genomic_id'] = item[field]
-                                else:
-                                    genomic_info[field.lower()] = item[field]
-
-                        # add unique matches by sample id
-                        matched_genomic_info.append(genomic_info)
-
-                    matched_sample_ids = set(item['SAMPLE_ID'] for item in results)
+                    matched_sample_ids = oncokb_matched_sample_ids
+                    matched_genomic_info = oncokb_matched_genomic_info
 
         # execute query against clinical table
         elif node['type'] == 'clinical':
@@ -521,7 +638,12 @@ class MatchEngine(object):
         # for all trials check for matches on the dose, arm, and step levels and keep track of what is found
         for trial in all_trials:
 
-            logging.info('Matching trial %s' % trial['protocol_no'])
+            # for DFCI
+            if 'protocol_no' in trial:
+                logging.info('Matching trial %s' % trial['protocol_no'])
+            # for OncoKB
+            else:
+                logging.info('Matching trial %s' % trial['nct_id'])
 
             # If the trial is not open to accrual, all matches to all match trees in this trial will be marked closed
             trial_status = 'open'
@@ -533,18 +655,19 @@ class MatchEngine(object):
 
             # STEP #
             for step in trial['treatment_list']['step']:
-                if 'match' in step:
+                if 'match' in step and step['match']:
                     trial_matches = self._assess_match(mrn_map, trial_matches, trial, step, 'step', trial_status)
 
                 # ARM #
                 for arm in step['arm']:
-                    if 'match' in arm:
+                    if 'match' in arm and arm['match']:
                         trial_matches = self._assess_match(mrn_map, trial_matches, trial, arm, 'arm', trial_status)
 
                     # DOSE #
-                    for dose in arm['dose_level']:
-                        if 'match' in dose:
-                            trial_matches = self._assess_match(mrn_map, trial_matches, trial, dose, 'dose', trial_status)
+                    if 'dose_level' in arm:
+                        for dose in arm['dose_level']:
+                            if 'match' in dose and dose['match']:
+                                trial_matches = self._assess_match(mrn_map, trial_matches, trial, dose, 'dose', trial_status)
 
         logging.info('Sorting trial matches')
         trial_matches = add_sort_order(trial_matches)
@@ -617,18 +740,28 @@ class MatchEngine(object):
 
                 # add internal id
                 if match_segment == 'dose':
-                    match['internal_id'] = str(trial_segment['level_internal_id'])
-                    match['code'] = trial_segment['level_code']
+                    if 'level_internal_id' in trial_segment:
+                        match['internal_id'] = str(trial_segment['level_internal_id'])
+                    if 'level_code' in trial_segment:
+                        match['code'] = trial_segment['level_code']
                     if 'level_suspended' in trial_segment and trial_segment['level_suspended'].lower() == 'y':
                         match['trial_accrual_status'] = 'closed'
                 elif match_segment == 'arm':
-                    match['internal_id'] = str(trial_segment['arm_internal_id'])
-                    match['code'] = str(trial_segment['arm_code'])
+                    if 'arm_internal_id' in trial_segment:
+                        match['internal_id'] = str(trial_segment['arm_internal_id'])
+                    if 'arm_code' in trial_segment:
+                        match['code'] = str(trial_segment['arm_code'])
                     if 'arm_suspended' in trial_segment and trial_segment['arm_suspended'].lower() == 'y':
                         match['trial_accrual_status'] = 'closed'
+                    if 'arm_name' in trial_segment:
+                        match['arm_name'] = str(trial_segment['arm_name'])
+                    if 'arm_description' in trial_segment:
+                        match['arm_description'] = str(trial_segment['arm_description'])
                 elif match_segment == 'step':
-                    match['internal_id'] = str(trial_segment['step_internal_id'])
-                    match['code'] = trial_segment['step_code']
+                    if 'step_internal_id' in trial_segment:
+                        match['internal_id'] = str(trial_segment['step_internal_id'])
+                    if 'step_code' in trial_segment:
+                        match['code'] = trial_segment['step_code']
 
                 # add to trial_matches
                 trial_matches.append(match)

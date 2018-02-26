@@ -77,7 +77,9 @@ class Trial:
 
         :param json: Path to JSON file.
         """
-        cmd = "mongoimport --host localhost:27017 --db matchminer --collection trial --file %s" % json
+        # --upsert: Replace existing documents in the database with matching documents from the import file.
+        # --upsertFields: Specifies a list of fields for the query portion of the upsert.
+        cmd = "mongoimport --host localhost:27017 --db matchminer --collection trial --upsert --upsertFields nct_id --file %s" % json
         subprocess.call(cmd.split(' '))
 
 
@@ -89,7 +91,8 @@ class Patient:
         self.load_dict = {
             'csv': self.load_csv,
             'pkl': self.load_pkl,
-            'bson': self.load_bson
+            'bson': self.load_bson,
+            'json': self.load_json
         }
         self.clinical_df = None
         self.genomic_df = None
@@ -113,6 +116,30 @@ class Patient:
         subprocess.call(cmd2.split(' '))
         return True
 
+    def load_json(self, clinical, genomic):
+        """
+        If you specify the path to a directory, all files with extension JSON will be added to MongoDB.
+        If you specify the path to a specific JSON file, it will add that file to MongoDB.
+
+        :param json: Path to JSON file.
+
+        Note: For the empty fields in genomic data, their values should be null rather than "".
+              For the false fields in genomic data, their values should be false rather than "false".
+              For the date fields in clinical data, the type of their values should be date object rather than string.
+        """
+        cmd1 = "mongoimport --host localhost:27017 --db matchminer --collection clinical --file %s --upsert --upsertFields DFCI_MRN --stopOnError --jsonArray" % clinical
+        cmd2 = "mongoimport --host localhost:27017 --db matchminer --collection genomic --file %s --stopOnError --jsonArray" % genomic
+        subprocess.call(cmd1.split(' '))
+        subprocess.call(cmd2.split(' '))
+
+        # convert string to date object
+        for clinical_item in self.db.clinical.find():
+            for col in ['BIRTH_DATE', 'REPORT_DATE']:
+                if type(clinical_item[col]) is not dt:
+                    clinical_item[col] = dt.datetime.combine(dt.datetime.strptime(str(clinical_item[col]), '%Y-%m-%d'), dt.time.min)
+                    self.db.clinical.update({'_id':clinical_item['_id']}, {"$set": {col: clinical_item[col]}}, upsert=False)
+
+        return True
 
 def load(args):
     """
@@ -166,9 +193,9 @@ def load(args):
     # Add patient data to mongo
     if args.clinical and args.genomic:
         logging.info('Reading data into pandas...')
-        is_bson = p.load_dict[args.patient_format](args.clinical, args.genomic)
+        is_bson_or_json = p.load_dict[args.patient_format](args.clinical, args.genomic)
 
-        if not is_bson:
+        if not is_bson_or_json:
 
             # reformatting
             for col in ['BIRTH_DATE', 'REPORT_DATE']:
@@ -320,7 +347,7 @@ if __name__ == '__main__':
                         dest='patient_format',
                         default='csv',
                         action='store',
-                        choices=['csv', 'pkl', 'bson'],
+                        choices=['csv', 'pkl', 'bson', 'json'],
                         help=param_patient_format_help)
     subp_p.set_defaults(func=load)
 
