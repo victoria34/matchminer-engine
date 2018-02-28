@@ -276,6 +276,10 @@ class MatchEngine(object):
                         proj['STRUCTURAL_VARIANT_COMMENT'] = 1
 
                 results = list(self.db.genomic.find(g, proj))
+                print
+                print g
+                print [i['SAMPLE_ID'] for i in results]
+                print
 
                 # if a negative query was match, the formatted genomic alteration will reflect the trial criteria
                 # and the genomic information will not be copied into the trial_match document
@@ -331,6 +335,12 @@ class MatchEngine(object):
             else:
                 matched_sample_ids = set(self.db.clinical.find(c).distinct('SAMPLE_ID'))
 
+            print
+            print c
+            print matched_sample_ids
+            print
+
+
         else:
             logging.info("bad match tree")
             return
@@ -346,10 +356,6 @@ class MatchEngine(object):
         """
 
         tree_genomic = {}
-
-        has_genomic_nodes = check_for_genomic_node(g)
-
-        # iterate through the graph
         for node_id in list(nx.dfs_postorder_nodes(g, source=1)):
 
             # get node and its child
@@ -362,6 +368,7 @@ class MatchEngine(object):
 
                 node['matched_sample_ids'] = matched_sample_ids
                 node['matched_genomic_info'] = matched_genomic_info
+                has_genomic_nodes = check_for_genomic_node(g, node_id=node_id)
 
                 if has_genomic_nodes:
                     for match in node['matched_genomic_info']:
@@ -393,6 +400,7 @@ class MatchEngine(object):
 
                 for i in range(1, len(successors)):
                     s_list = g.node[successors[i]]['matched_sample_ids']
+
                     if node['type'] == 'and':
                         node['matched_sample_ids'].intersection_update(s_list)
 

@@ -499,6 +499,14 @@ def check_for_genomic_node(g, node_id=1):
     """
     Recursively iterates down a networkx graph containing a trial's
     match information, checking for genomic node types.
+    
+    A node is clinical only if its parent is an "or" and that parents' non-self children are not
+    clinical nodes. E.g.
+
+           |--- Clinical
+    and ---|
+           |
+           |--- and
 
     :param g: Networkx graph
     :param node_id: ID of the current node. Default starts with the base node.
@@ -510,13 +518,29 @@ def check_for_genomic_node(g, node_id=1):
     if current_node['type'] == 'genomic':
         return True
 
-    if current_node['type'] in ['and', 'or']:
-        children = g.successors(node_id)
+    parents = g.predecessors(node_id)
+    parent_nodes = [g.node[i] for i in parents]
+    parents_children = []
+    for parent_node_id in parents:
+        parents_children.extend(g.successors(parent_node_id))
 
-        for child_node_id in children:
-            has_genomic_nodes = check_for_genomic_node(g, node_id=child_node_id)
+    for parent_node_id, parent_node in zip(parents, parent_nodes):
 
-            if has_genomic_nodes:
-                return has_genomic_nodes
+        if current_node['type'] == 'clinical' and parent_node['type'] == 'or':
+            this_parents_children = [i for i in g.successors(parent_node_id) if i != node_id]
+            for this_parents_child in this_parents_children:
+                this_parents_child_node = g.node[this_parents_child]
+                if this_parents_child_node['type'] != 'clinical':
+                    return False
+        else:
+            child_node_ids = []
+            for parents_child_node_id in parents_children:
+                if parents_child_node_id != node_id:
+                    child_node_ids.extend(g.successors(parents_child_node_id))
+
+            for child_node_id in child_node_ids:
+                has_genomic_nodes = check_for_genomic_node(g, node_id=child_node_id)
+                if has_genomic_nodes:
+                    return has_genomic_nodes
 
     return False
