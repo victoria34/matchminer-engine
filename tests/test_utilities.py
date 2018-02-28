@@ -440,3 +440,45 @@ class TestUtilities(TestSetUp):
             'genomic_alteration': 'None',
             'sample_id': 'TCGA-OR-A5J1'
         }]]
+
+        match = {
+            'or': [
+                {
+                    'clinical': {
+                        'age_numerical': '>=18',
+                        'oncotree_primary_diagnosis': 'Colorectal Adenocarcinoma'
+                    }
+                },
+                {
+                    'and': [
+                        {
+                            'and': [
+                                {
+                                    'genomic': {
+                                        'hugo_symbol': 'KRAS',
+                                        'wildtype': True
+                                    }
+                                },
+                                {
+                                    'genomic': {
+                                        'hugo_symbol': 'NRAS',
+                                        'wildtype': True
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            'clinical': {
+                                'age_numerical': '>=18',
+                                'oncotree_primary_diagnosis': 'Head and Neck Squamous Cell Carcinoma'
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+        g = me(self.db).create_match_tree(match)
+        has_genomic = check_for_genomic_node(g, node_id=5)  # Head and Neck Squamous Cell Carcinoma
+        assert has_genomic is True
+        has_genomic = check_for_genomic_node(g, node_id=2)  # Colorectal Adenocarcinoma
+        assert has_genomic is False

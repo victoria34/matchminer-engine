@@ -77,7 +77,7 @@ class Trial:
 
         :param json: Path to JSON file.
         """
-        cmd = "mongoimport --host localhost:27017 --db matchminer --collection %s" % json
+        cmd = "mongoimport --host localhost:27017 --db matchminer --collection trial --file %s" % json
         subprocess.call(cmd.split(' '))
 
 

@@ -346,10 +346,6 @@ class MatchEngine(object):
         """
 
         tree_genomic = {}
-
-        has_genomic_nodes = check_for_genomic_node(g)
-
-        # iterate through the graph
         for node_id in list(nx.dfs_postorder_nodes(g, source=1)):
 
             # get node and its child
@@ -362,6 +358,7 @@ class MatchEngine(object):
 
                 node['matched_sample_ids'] = matched_sample_ids
                 node['matched_genomic_info'] = matched_genomic_info
+                has_genomic_nodes = check_for_genomic_node(g, node_id=node_id)
 
                 if has_genomic_nodes:
                     for match in node['matched_genomic_info']:
@@ -393,6 +390,7 @@ class MatchEngine(object):
 
                 for i in range(1, len(successors)):
                     s_list = g.node[successors[i]]['matched_sample_ids']
+
                     if node['type'] == 'and':
                         node['matched_sample_ids'].intersection_update(s_list)
 

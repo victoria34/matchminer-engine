@@ -108,8 +108,8 @@ class TestMatch(TestSetUp):
         trials = [item['protocol_no'] for item in t if item['mrn'] == p]
         doses = [item['internal_id'] for item in t if item['match_level'] == 'dose' and item['mrn'] == p]
         assert p in mrns, self._debug(mrns)
-        assert trials == ['00-001'], self._debug(trials)
-        assert doses == ['1'], self._debug(doses)
+        assert list(set(trials)) == ['00-001'], self._debug(trials)
+        assert list(set(doses)) == ['1'], self._debug(doses)
 
         # match multiple intratrial doses
         self.add_trials(trials=['00-004'])
@@ -121,8 +121,8 @@ class TestMatch(TestSetUp):
         trials = [item['protocol_no'] for item in t if item['mrn'] == p]
         doses = [item['internal_id'] for item in t if item['match_level'] == 'dose' and item['mrn'] == p]
         assert p in mrns, self._debug(mrns)
-        assert trials == ['00-001'], self._debug(trials)
-        assert doses == ['1'], self._debug(doses)
+        assert list(set(trials)) == ['00-001'], self._debug(trials)
+        assert list(set(doses)) == ['1'], self._debug(doses)
 
         # match multiple intertrial doses
         self.db.trial.drop()
@@ -142,7 +142,7 @@ class TestMatch(TestSetUp):
         doses = [item['internal_id'] for item in t if item['match_level'] == 'dose' and item['mrn'] == p]
         assert p in mrns, self._debug(mrns)
         assert list(set(trials)) == ['00-005'], self._debug(trials)
-        assert doses == ['5', '6'], self._debug(doses)
+        assert list(set(doses)) == ['5', '6'], self._debug(doses)
 
     @staticmethod
     def _read_file(file):
