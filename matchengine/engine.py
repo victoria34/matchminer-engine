@@ -276,10 +276,6 @@ class MatchEngine(object):
                         proj['STRUCTURAL_VARIANT_COMMENT'] = 1
 
                 results = list(self.db.genomic.find(g, proj))
-                print
-                print g
-                print [i['SAMPLE_ID'] for i in results]
-                print
 
                 # if a negative query was match, the formatted genomic alteration will reflect the trial criteria
                 # and the genomic information will not be copied into the trial_match document
@@ -334,12 +330,6 @@ class MatchEngine(object):
                 matched_sample_ids = list()
             else:
                 matched_sample_ids = set(self.db.clinical.find(c).distinct('SAMPLE_ID'))
-
-            print
-            print c
-            print matched_sample_ids
-            print
-
 
         else:
             logging.info("bad match tree")

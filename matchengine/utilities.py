@@ -503,10 +503,39 @@ def check_for_genomic_node(g, node_id=1):
     A node is clinical only if its parent is an "or" and that parents' non-self children are not
     clinical nodes. E.g.
 
+    (1)
            |--- Clinical
     and ---|
-           |
+           |     |------ Genomic        --> NOT clinical only
            |--- and
+                 |------ Genomic
+
+    (2)
+           |--- Clinical
+    and ---|
+           |     |------ Genomic        --> NOT clinical only
+           |---- or
+                 |------ Genomic
+
+    (3)
+                 |--- Clinical
+           |---- or
+           |     |--- Clinical
+    and ---|                            --> NOT clinical only
+           |     |------ Genomic
+           |--- and
+                 |------ Genomic
+
+    (4)
+           |--- Clinical
+    or ----|
+           |     |------ Genomic        --> YES clinical only
+           |--- and
+                 |------ Genomic
+
+    More complex versions of this pattern prevent assuming a root-level "or" with a clinical child as being
+    a clinical only node. This root-level or could encompass subtrees with both genomically dependent and indepedent
+    clinical clauses.
 
     :param g: Networkx graph
     :param node_id: ID of the current node. Default starts with the base node.
@@ -515,9 +544,18 @@ def check_for_genomic_node(g, node_id=1):
 
     current_node = g.node[node_id]
 
+    # assess current node
     if current_node['type'] == 'genomic':
         return True
 
+    # assess children of current node
+    children = g.successors(node_id)
+    for child_node_id in children:
+        child_node = g.node[child_node_id]
+        if child_node['type'] == 'genomic':
+            return True
+
+    # assess current node in the context of its parents' children
     parents = g.predecessors(node_id)
     parent_nodes = [g.node[i] for i in parents]
     parents_children = []
