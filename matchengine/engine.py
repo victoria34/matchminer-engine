@@ -262,7 +262,8 @@ class MatchEngine(object):
                     'CLINICAL_ID': 1,
                     'MMR_STATUS': 1,
                     'ACTIONABILITY': 1,
-                    '_id': 1
+                    '_id': 1,
+                    'ONCOKB_GENOMIC_ID': 1
                 }
 
                 # record pathologist's chromosomal rearrangement comment for downstream manual analysis
@@ -640,6 +641,16 @@ class MatchEngine(object):
         mrns = self.db.clinical.distinct('DFCI_MRN')
         proj = {'protocol_no': 1, 'nct_id': 1, 'treatment_list': 1, '_summary': 1}
         all_trials = list(self.db.trial.find({}, proj))
+        queried_trials = list(self.db.query_trial.find({}, proj))
+
+        not_matched_trials = list()
+        for trial in all_trials:
+            if queried_trials:
+                for item in queried_trials:
+                    if item["nct_id"] is not trial["nct_id"]:
+                        not_matched_trials.add(trial)
+            else:
+                not_matched_trials = all_trials
 
         # create a map between sample id and MRN
         mrn_map = samples_from_mrns(self.db, mrns)
@@ -647,8 +658,8 @@ class MatchEngine(object):
         # initialize trial matches
         trial_matches = []
 
-        # for all trials check for matches on the dose, arm, and step levels and keep track of what is found
-        for trial in all_trials:
+        # for not_matched_trials check for matches on the dose, arm, and step levels and keep track of what is found
+        for trial in not_matched_trials:
 
             # for DFCI
             if 'protocol_no' in trial:
@@ -656,6 +667,9 @@ class MatchEngine(object):
             # for OncoKB
             else:
                 logging.info('Matching trial %s' % trial['nct_id'])
+
+            # skip trials that found in trial_match for query_data
+
 
             # If the trial is not open to accrual, all matches to all match trees in this trial will be marked closed
             trial_status = 'open'
@@ -683,10 +697,17 @@ class MatchEngine(object):
 
         logging.info('Sorting trial matches')
         trial_matches = add_sort_order(trial_matches)
+        trial_matches_copy = copy.deepcopy(trial_matches)
+
+        # create a collection to contain newly matched trials
+        logging.info('Adding trial matches to database collection "new_trial_match"')
+        add_matches(trial_matches_copy, self.db, "new_trial_match")
+
+
 
         # add to db
-        logging.info('Adding trial matches to database')
-        add_matches(trial_matches, self.db)
+        logging.info('Adding trial matches to database collection "trial_matches"')
+        add_matches(trial_matches, self.db, "trial_match")
 
         return trial_matches
 
@@ -719,7 +740,8 @@ class MatchEngine(object):
                     'VITAL_STATUS': 1,
                     'FIRST_LAST': 1,
                     'GENDER': 1,
-                    '_id': 1
+                    '_id': 1,
+                    'ONCOKB_CLINICAL_ID': 1
                 }
             clinical = list(self.db.clinical.find({'SAMPLE_ID': {'$in': list(sample_ids)}}, cproj))
 

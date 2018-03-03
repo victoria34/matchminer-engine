@@ -22,7 +22,7 @@ MATCH_FIELDS = "mrn,sample_id,first_last,protocol_no,nct_id,genomic_alteration,t
                "vital_status,oncotree_primary_diagnosis_name,true_hugo_symbol,true_protein_change," \
                "true_variant_classification,variant_category,report_date,chromosome,position," \
                "true_cdna_change,reference_allele,true_transcript_exon,canonical_strand,allele_fraction," \
-               "cnv_call,wildtype,_id"
+               "cnv_call,wildtype,_id,oncokb_variant"
 
 
 class Trial:
@@ -127,16 +127,18 @@ class Patient:
               For the false fields in genomic data, their values should be false rather than "false".
               For the date fields in clinical data, the type of their values should be date object rather than string.
         """
-        cmd1 = "mongoimport --host localhost:27017 --db matchminer --collection clinical --file %s --upsert --upsertFields DFCI_MRN --stopOnError --jsonArray" % clinical
-        cmd2 = "mongoimport --host localhost:27017 --db matchminer --collection genomic --file %s --stopOnError --jsonArray" % genomic
+
+        cmd1 = "mongoimport --host localhost:27017 --db matchminer --collection clinical --file %s --upsert --upsertFields ONCOKB_CLINICAL_ID --stopOnError --jsonArray" % clinical
+        cmd2 = "mongoimport --host localhost:27017 --db matchminer --collection genomic --file %s --upsert --upsertFields ONCOKB_GENOMIC_ID --stopOnError --jsonArray" % genomic
         subprocess.call(cmd1.split(' '))
         subprocess.call(cmd2.split(' '))
 
         # convert string to date object
         for clinical_item in self.db.clinical.find():
             for col in ['BIRTH_DATE', 'REPORT_DATE']:
-                if type(clinical_item[col]) is not dt:
-                    clinical_item[col] = dt.datetime.combine(dt.datetime.strptime(str(clinical_item[col]), '%Y-%m-%d'), dt.time.min)
+                if type(clinical_item[col]) is not dt.datetime:
+                    clinical_item[col] = dt.datetime.strptime(str(clinical_item[col]), '%Y-%m-%d')
+                    clinical_item[col] = dt.datetime.strptime(str(clinical_item[col]), '%Y-%m-%d %X')
                     self.db.clinical.update({'_id':clinical_item['_id']}, {"$set": {col: clinical_item[col]}}, upsert=False)
 
         return True

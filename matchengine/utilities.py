@@ -373,7 +373,7 @@ def format_query(g, gene=False):
     return alteration
 
 
-def add_matches(trial_matches_df, db):
+def add_matches(trial_matches_df, db, collection_name):
     """Add the match table to the database or update what already exists theres"""
 
     if 'clinical_id' in trial_matches_df.columns:
@@ -388,8 +388,12 @@ def add_matches(trial_matches_df, db):
 
     if len(trial_matches_df.index) > 0:
         records = json.loads(trial_matches_df.T.to_json()).values()
-        db.trial_match.drop()
-        db.trial_match.insert_many(records)
+        if collection_name is "trial_match":
+            # db.trial_match.drop()
+            db.trial_match.insert_many(records)
+        else:
+            db.new_trial_match.drop()
+            db.new_trial_match.insert_many(records)
 
 
 def get_db(uri):
