@@ -641,16 +641,17 @@ class MatchEngine(object):
         mrns = self.db.clinical.distinct('DFCI_MRN')
         proj = {'protocol_no': 1, 'nct_id': 1, 'treatment_list': 1, '_summary': 1}
         all_trials = list(self.db.trial.find({}, proj))
-        queried_trials = list(self.db.query_trial.find({}, proj))
+        queried_trials_nct_id = list(self.db.trial_query.find({}, proj).distinct('nct_id'))
 
         not_matched_trials = list()
-        for trial in all_trials:
-            if queried_trials:
-                for item in queried_trials:
-                    if item["nct_id"] is not trial["nct_id"]:
-                        not_matched_trials.add(trial)
-            else:
-                not_matched_trials = all_trials
+        if len(all_trials) != len(queried_trials_nct_id):
+            for trial in all_trials:
+                if queried_trials_nct_id:
+                    for nct_id in queried_trials_nct_id:
+                        if nct_id != trial["nct_id"]:
+                            not_matched_trials.append(trial)
+                else:
+                    not_matched_trials = all_trials
 
         # create a map between sample id and MRN
         mrn_map = samples_from_mrns(self.db, mrns)
@@ -701,9 +702,8 @@ class MatchEngine(object):
 
         # create a collection to contain newly matched trials
         logging.info('Adding trial matches to database collection "new_trial_match"')
+        self.db.new_trial_match.drop()
         add_matches(trial_matches_copy, self.db, "new_trial_match")
-
-
 
         # add to db
         logging.info('Adding trial matches to database collection "trial_matches"')
