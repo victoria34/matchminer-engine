@@ -392,7 +392,6 @@ def add_matches(trial_matches_df, db, collection_name):
             # db.trial_match.drop()
             db.trial_match.insert_many(records)
         else:
-            db.new_trial_match.drop()
             db.new_trial_match.insert_many(records)
 
 
