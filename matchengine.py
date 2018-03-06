@@ -116,7 +116,7 @@ class Patient:
         subprocess.call(cmd2.split(' '))
         return True
 
-    def load_json(self, clinical, genomic):
+    def load_json(self, args):
         """
         If you specify the path to a directory, all files with extension JSON will be added to MongoDB.
         If you specify the path to a specific JSON file, it will add that file to MongoDB.
@@ -128,8 +128,8 @@ class Patient:
               For the date fields in clinical data, the type of their values should be date object rather than string.
         """
 
-        cmd1 = "mongoimport --host localhost:27017 --db matchminer --collection clinical --file %s --upsert --upsertFields ONCOKB_CLINICAL_ID --stopOnError --jsonArray" % clinical
-        cmd2 = "mongoimport --host localhost:27017 --db matchminer --collection genomic --file %s --upsert --upsertFields ONCOKB_GENOMIC_ID --stopOnError --jsonArray" % genomic
+        cmd1 = "mongoimport --host localhost:27017 --db matchminer --collection clinical --file %s --upsert --upsertFields ONCOKB_CLINICAL_ID --stopOnError --jsonArray" % args.clinical
+        cmd2 = "mongoimport --host localhost:27017 --db matchminer --collection genomic --file %s --upsert --upsertFields ONCOKB_GENOMIC_ID --stopOnError --jsonArray" % args.genomic
         subprocess.call(cmd1.split(' '))
         subprocess.call(cmd2.split(' '))
 
@@ -140,6 +140,23 @@ class Patient:
                     clinical_item[col] = dt.datetime.strptime(str(clinical_item[col]), '%Y-%m-%d')
                     clinical_item[col] = dt.datetime.strptime(str(clinical_item[col]), '%Y-%m-%d %X')
                     self.db.clinical.update({'_id':clinical_item['_id']}, {"$set": {col: clinical_item[col]}}, upsert=False)
+
+        if args.query:
+            self.db.new_clinical.drop()
+            self.db.new_genomic.drop()
+
+            cmdc = "mongoimport --host localhost:27017 --db matchminer --collection new_clinical --file %s --upsert --upsertFields ONCOKB_CLINICAL_ID --stopOnError --jsonArray" % args.clinical
+            cmdg = "mongoimport --host localhost:27017 --db matchminer --collection new_genomic --file %s --upsert --upsertFields ONCOKB_GENOMIC_ID --stopOnError --jsonArray" % args.genomic
+            subprocess.call(cmdc.split(' '))
+            subprocess.call(cmdg.split(' '))
+
+            # convert string to date object
+            for clinical_item in self.db.new_clinical.find():
+                for col in ['BIRTH_DATE', 'REPORT_DATE']:
+                    if type(clinical_item[col]) is not dt.datetime:
+                        clinical_item[col] = dt.datetime.strptime(str(clinical_item[col]), '%Y-%m-%d')
+                        clinical_item[col] = dt.datetime.strptime(str(clinical_item[col]), '%Y-%m-%d %X')
+                        self.db.new_clinical.update({'_id':clinical_item['_id']}, {"$set": {col: clinical_item[col]}}, upsert=False)
 
         return True
 
@@ -195,7 +212,7 @@ def load(args):
     # Add patient data to mongo
     if args.clinical and args.genomic:
         logging.info('Reading data into pandas...')
-        is_bson_or_json = p.load_dict[args.patient_format](args.clinical, args.genomic)
+        is_bson_or_json = p.load_dict[args.patient_format](args)
 
         if not is_bson_or_json:
 
@@ -282,9 +299,10 @@ def match(args):
     """
 
     db = get_db(args.mongo_uri)
+    query = args.query
 
     while True:
-        me = MatchEngine(db)
+        me = MatchEngine(db, query)
         me.find_trial_matches()
 
         # exit if it is not set to run as a nightly automated daemon, otherwise sleep for a day
@@ -324,6 +342,7 @@ if __name__ == '__main__':
     param_clinical_help = 'Path to your clinical file. Default expected format is CSV.'
     param_genomic_help = 'Path to your genomic file. Default expected format is CSV'
     param_json_help = 'Set this flag to export your results in a .json file.'
+    param_query_help = 'Set this flag to match trial based on newly added clinical and genomic data.'
     param_csv_help = 'Set this flag to export your results in a .csv file. Default.'
     param_outpath_help = 'Destination and name of your results file.'
     param_trial_format_help = 'File format of input trial data. Default is YML.'
@@ -351,6 +370,7 @@ if __name__ == '__main__':
                         action='store',
                         choices=['csv', 'pkl', 'bson', 'json'],
                         help=param_patient_format_help)
+    subp_p.add_argument('--query', dest="query", required=False, action="store_true", help=param_query_help)
     subp_p.set_defaults(func=load)
 
     # match
@@ -360,6 +380,7 @@ if __name__ == '__main__':
     subp_p.add_argument('--json', dest="json_format", required=False, action="store_true", help=param_json_help)
     subp_p.add_argument('--csv', dest="csv_format", required=False, action="store_true", help=param_csv_help)
     subp_p.add_argument('-o', dest="outpath", required=False, help=param_outpath_help)
+    subp_p.add_argument('--query', dest="query", required=False, action="store_true", help=param_query_help)
     subp_p.set_defaults(func=match)
 
     # parse args.

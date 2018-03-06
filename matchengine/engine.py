@@ -38,9 +38,12 @@ schema_registry.add('map', schema.map)
 
 class MatchEngine(object):
 
-    def __init__(self, db):
+    def __init__(self, db, query):
         # get the database.
         self.db = db
+
+        # check if match trial based on newly added clinical and genomic data
+        self.query = query
 
         # stores the complete list as easy lookup
         self.all_match = set(self.db.clinical.distinct('SAMPLE_ID'))
@@ -232,6 +235,7 @@ class MatchEngine(object):
             matched_genomic_info: genomic information regarding each match
         """
         matched_genomic_info = []
+        results = list()
         # prepare genomic criteria
         g, neg, sv = self.prepare_genomic_criteria(conditions)
 
@@ -270,7 +274,11 @@ class MatchEngine(object):
                 if sv:
                     proj['STRUCTURAL_VARIANT_COMMENT'] = 1
 
-            results = list(self.db.genomic.find(g, proj))
+            if self.query:
+                # match trial for queried genomic data
+                results = list(self.db.new_genomic.find(g, proj))
+            else:
+                results = list(self.db.genomic.find(g, proj))
 
             # if a negative query was match, the formatted genomic alteration will reflect the trial criteria
             # and the genomic information will not be copied into the trial_match document
@@ -644,14 +652,14 @@ class MatchEngine(object):
         queried_trials_nct_id = list(self.db.trial_query.find({}, proj).distinct('nct_id'))
 
         not_matched_trials = list()
-        if len(all_trials) != len(queried_trials_nct_id):
-            for trial in all_trials:
-                if queried_trials_nct_id:
+        if self.query and queried_trials_nct_id:
+            if len(all_trials) != len(queried_trials_nct_id):
+                for trial in all_trials:
                     for nct_id in queried_trials_nct_id:
                         if nct_id != trial["nct_id"]:
                             not_matched_trials.append(trial)
-                else:
-                    not_matched_trials = all_trials
+        else:
+            not_matched_trials = all_trials
 
         # create a map between sample id and MRN
         mrn_map = samples_from_mrns(self.db, mrns)
@@ -743,7 +751,12 @@ class MatchEngine(object):
                     '_id': 1,
                     'ONCOKB_CLINICAL_ID': 1
                 }
-            clinical = list(self.db.clinical.find({'SAMPLE_ID': {'$in': list(sample_ids)}}, cproj))
+
+            if self.query:
+                # match trial for queried clinical data
+                clinical = list(self.db.new_clinical.find({'SAMPLE_ID': {'$in': list(sample_ids)}}, cproj))
+            else:
+                clinical = list(self.db.clinical.find({'SAMPLE_ID': {'$in': list(sample_ids)}}, cproj))
 
         # add to master list if any sample ids matched
         for sample in ginfos:
