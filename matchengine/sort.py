@@ -63,9 +63,10 @@ def add_sort_order(trial_matches):
 
         master_sort_order = final_sort(sort_order, master_sort_order)
 
-    trial_match_df['sort_order'] = trial_match_df.apply(lambda x: master_sort_order[(x['sample_id'], x['protocol_no'])]
-                                                        if (x['sample_id'], x['protocol_no']) in master_sort_order
-                                                        else -1, axis=1)
+        if master_sort_order:
+            trial_match_df['sort_order'] = trial_match_df.apply(lambda x: master_sort_order[(x['sample_id'], x['protocol_no'])]
+                                                                if (x['sample_id'], x['protocol_no']) in master_sort_order
+                                                                else -1, axis=1)
     return trial_match_df
 
 

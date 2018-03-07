@@ -502,7 +502,7 @@ def check_for_genomic_node(g, node_id=1):
     """
     Recursively iterates down a networkx graph containing a trial's
     match information, checking for genomic node types.
-    
+
     A node is clinical only if its parent is an "or" and that parents' non-self children are not
     clinical nodes. E.g.
 
@@ -564,6 +564,12 @@ def check_for_genomic_node(g, node_id=1):
     parents_children = []
     for parent_node_id in parents:
         parents_children.extend(g.successors(parent_node_id))
+
+    # assess sibling node
+    for sibling_id in parents_children:
+        sibling_node = g.node[sibling_id]
+        if sibling_node['type'] == 'genomic':
+            return True
 
     for parent_node_id, parent_node in zip(parents, parent_nodes):
 
