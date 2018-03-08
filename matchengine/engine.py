@@ -359,6 +359,9 @@ class MatchEngine(object):
         proj = {
             'SAMPLE_ID': 1,
             'TRUE_HUGO_SYMBOL': 1,
+            'TRUE_PROTEIN_CHANGE':1,
+            'TRUE_VARIANT_CLASSIFICATION':1,
+            'VARIANT_CATEGORY':1,
             'ONCOKB_VARIANT': 1,
             '_id': 1,
             'ONCOKB_GENOMIC_ID': 1
