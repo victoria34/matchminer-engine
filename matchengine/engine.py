@@ -431,8 +431,11 @@ class MatchEngine(object):
                                 "variant_classification", "exon", "cnv_call", "wildtype", "mmr_status", "ms_status"]
 
             for key in item.keys():
+                # i.e., {'type': 'genomic', 'value': {'HUGO_SYMBOL': '!BRAF'}}
+                if len(item.keys()) == 1:
+                    matched_sample_ids, matched_genomic_info = self.general_match(item_deepcopy)
                 # run general_match when any key appears in general_key_map and its value is not null.
-                if key in general_map_keys and item[key] and 'hugo_symbol' in item and item['hugo_symbol']:
+                elif key in general_map_keys and item[key] and 'hugo_symbol' in item and item['hugo_symbol']:
                     matched_sample_ids, matched_genomic_info = self.general_match(item_deepcopy)
                     run_general_match = True
                     break

@@ -46,7 +46,7 @@ class TestSetUp(unittest.TestCase):
                     "response", "statistics", "status", "team", "trial", "trial_match", "user"]:
             self.db.drop_collection(res)
 
-        self.me = MatchEngine(self.db)
+        self.me = MatchEngine(self.db, False)
 
         self.trials = {}
         self.clinical_id = ObjectId()
@@ -151,6 +151,36 @@ class TestSetUp(unittest.TestCase):
             'SAMPLE_ID': 'FAKE-01',
             'TRUE_TRANSCRIPT_EXON': None,
             'ACTIONABILITY': 'actionable',
+            'MMR_STATUS': 'Proficient (MMR-P / MSS)'
+        }
+        self.db.genomic.insert(genomic)
+
+    def add_genomic_oncokb_variant(self):
+        """Adds a genomic with oncokb_variant"""
+        genomic = {
+            'CLINICAL_ID': ObjectId(),
+            'TRUE_HUGO_SYMBOL': 'PIK3CA',
+            'ONCOKB_VARIANT': 'p.H1047R',
+            'SAMPLE_ID': 'FAKE-02'
+        }
+        self.db.genomic.insert(genomic)
+
+    def add_genomic_oncokb_variant_v2(self):
+        """Adds a genomic with oncokb_variant in dfci matching criteria"""
+        genomic = {
+            'TRUE_VARIANT_CLASSIFICATION': None,
+            'TRUE_PROTEIN_CHANGE': 'T599_V600insEAT',
+            'VARIANT_CATEGORY': None,
+            'CHROMOSOME': None,
+            'POSITION': None,
+            'TRUE_STRAND': None,
+            'WILDTYPE': False,
+            'CLINICAL_ID': ObjectId(),
+            'CNV_CALL': None,
+            'TRUE_HUGO_SYMBOL': 'BRAF',
+            'ONCOKB_VARIANT': 'T599_V600insEAT',
+            'SAMPLE_ID': 'FAKE-03',
+            'TRUE_TRANSCRIPT_EXON': None,
             'MMR_STATUS': 'Proficient (MMR-P / MSS)'
         }
         self.db.genomic.insert(genomic)
