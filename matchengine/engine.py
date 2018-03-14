@@ -770,7 +770,8 @@ class MatchEngine(object):
 
                 # add match document
                 match = alteration
-                match['mrn'] = mrn_map[alteration['sample_id']]
+                if alteration['sample_id'] in mrn_map:
+                    match['mrn'] = mrn_map[alteration['sample_id']]
                 match['match_level'] = match_segment
                 match['trial_accrual_status'] = trial_status
                 match['cancer_type_match'] = get_cancer_type_match(trial)

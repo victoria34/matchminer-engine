@@ -135,7 +135,13 @@ class Patient:
 
         # convert string to date object
         for clinical_item in self.db.clinical.find():
-            for col in ['BIRTH_DATE', 'REPORT_DATE']:
+            cols = list()
+            keys = clinical_item.keys()
+            if 'BIRTH_DATE' in keys:
+                cols.append('BIRTH_DATE')
+            if 'REPORT_DATE' in keys:
+                cols.append('REPORT_DATE')
+            for col in cols:
                 if type(clinical_item[col]) is not dt.datetime:
                     clinical_item[col] = dt.datetime.strptime(str(clinical_item[col]), '%Y-%m-%d')
                     clinical_item[col] = dt.datetime.strptime(str(clinical_item[col]), '%Y-%m-%d %X')
@@ -152,7 +158,13 @@ class Patient:
 
             # convert string to date object
             for clinical_item in self.db.new_clinical.find():
-                for col in ['BIRTH_DATE', 'REPORT_DATE']:
+                cols = list()
+                keys = clinical_item.keys()
+                if 'BIRTH_DATE' in keys:
+                    cols.append('BIRTH_DATE')
+                if 'REPORT_DATE' in keys:
+                    cols.append('REPORT_DATE')
+                for col in cols:
                     if type(clinical_item[col]) is not dt.datetime:
                         clinical_item[col] = dt.datetime.strptime(str(clinical_item[col]), '%Y-%m-%d')
                         clinical_item[col] = dt.datetime.strptime(str(clinical_item[col]), '%Y-%m-%d %X')
