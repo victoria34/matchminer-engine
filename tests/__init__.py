@@ -46,7 +46,7 @@ class TestSetUp(unittest.TestCase):
                     "response", "statistics", "status", "team", "trial", "trial_match", "user"]:
             self.db.drop_collection(res)
 
-        self.me = MatchEngine(self.db, False)
+        self.me = MatchEngine(self.db)
 
         self.trials = {}
         self.clinical_id = ObjectId()

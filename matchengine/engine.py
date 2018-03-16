@@ -38,12 +38,15 @@ schema_registry.add('map', schema.map)
 
 class MatchEngine(object):
 
-    def __init__(self, db, query):
+    def __init__(self, db):
         # get the database.
         self.db = db
 
         # check if match trial based on newly added clinical and genomic data
-        self.query = query
+        if self.db.new_genomic.count() > 0 and self.db.new_clinical.count() > 0:
+            self.query = True
+        else:
+            self.query = False
 
         # stores the complete list as easy lookup
         self.all_match = set(self.db.clinical.distinct('SAMPLE_ID'))
@@ -712,16 +715,10 @@ class MatchEngine(object):
 
         logging.info('Sorting trial matches')
         trial_matches = add_sort_order(trial_matches)
-        trial_matches_copy = copy.deepcopy(trial_matches)
-
-        # create a collection to contain newly matched trials
-        logging.info('Adding trial matches to database collection "new_trial_match"')
-        self.db.new_trial_match.drop()
-        add_matches(trial_matches_copy, self.db, "new_trial_match")
 
         # add to db
-        logging.info('Adding trial matches to database collection "trial_matches"')
-        add_matches(trial_matches, self.db, "trial_match")
+        logging.info('Adding trial matches to database collection "trial_matches" and "new_trial_match"')
+        add_matches(trial_matches, self.db)
 
         return trial_matches
 

@@ -389,7 +389,7 @@ class TestUtilities(TestSetUp):
                 'oncotree_primary_diagnosis': 'Ovarian Epithelial Tumor'
             }
         }
-        g = me(self.db, False).create_match_tree(match)
+        g = me(self.db).create_match_tree(match)
         has_genomic = check_for_genomic_node(g)
         assert has_genomic is False
 
@@ -409,7 +409,7 @@ class TestUtilities(TestSetUp):
                 }
             ]
         }
-        g = me(self.db, False).create_match_tree(match)
+        g = me(self.db).create_match_tree(match)
         has_genomic = check_for_genomic_node(g)
         assert has_genomic is True
 
@@ -429,11 +429,11 @@ class TestUtilities(TestSetUp):
                 }
             ]
         }
-        g = me(self.db, False).create_match_tree(match)
+        g = me(self.db).create_match_tree(match)
         has_genomic = check_for_genomic_node(g)
         assert has_genomic is False
 
-        final_sample_ids, final_genomic_infos = me(self.db, False).traverse_match_tree(g)
+        final_sample_ids, final_genomic_infos = me(self.db).traverse_match_tree(g)
         assert 'TCGA-OR-A5J1' in final_sample_ids
         assert final_genomic_infos == [[{
             'clinical_only': True,
@@ -477,7 +477,7 @@ class TestUtilities(TestSetUp):
                 }
             ]
         }
-        g = me(self.db, False).create_match_tree(match)
+        g = me(self.db).create_match_tree(match)
         has_genomic = check_for_genomic_node(g, node_id=5)  # Head and Neck Squamous Cell Carcinoma
         assert has_genomic is True
         has_genomic = check_for_genomic_node(g, node_id=2)  # Colorectal Adenocarcinoma

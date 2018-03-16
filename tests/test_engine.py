@@ -91,7 +91,7 @@ class TestMatchEngine(TestSetUp):
 
         # reinstantiate MatchEngine so that the set of all sample ids in the database includes the documents that were
         # posted by the unit test setUp
-        self.me = MatchEngine(self.db, False)
+        self.me = MatchEngine(self.db)
 
         # define a clinical node
         node = {'type': 'clinical', 'value': {'ONCOTREE_PRIMARY_DIAGNOSIS': 'Adrenal Gland', 'AGE_NUMERICAL': '>=18'}}
