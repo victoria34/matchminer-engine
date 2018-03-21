@@ -79,6 +79,7 @@ class MatchEngine(object):
                 'Structural Variation': 'SV'
             },
             'CNV_CALL': {
+                'Low Amplification': 'Gain',
                 'High Amplification': 'High level amplification',
                 'Homozygous Deletion': 'Homozygous deletion',
                 'Heterozygous Deletion': 'Heterozygous deletion',
