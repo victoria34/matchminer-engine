@@ -319,29 +319,7 @@ def match(args):
         db.drop_collection('new_genomic')
 
         # exit if it is not set to run as a nightly automated daemon, otherwise sleep for a day
-        if not args.daemon:
-
-            # choose output file format
-            if args.json_format:
-                file_format = 'json'
-            elif args.outpath and len(args.outpath.split('.')) > 1:
-                file_format = args.outpath.split('.')[-1]
-                if file_format not in ['json', 'csv']:
-                    file_format = 'csv'
-            else:
-                file_format = 'csv'
-
-            # choose output path
-            if args.outpath:
-                outpath = args.outpath.split('.')[0]
-            else:
-                outpath = 'results'
-
-            # export results
-            export_results(file_format, outpath, args.mongo_uri, db.name)
-
-            break
-        else:
+        if args.daemon:
             time.sleep(86400)   # sleep for 24 hours
 
 if __name__ == '__main__':
