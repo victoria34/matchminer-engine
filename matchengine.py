@@ -319,7 +319,10 @@ def match(args):
         db.drop_collection('new_genomic')
 
         # exit if it is not set to run as a nightly automated daemon, otherwise sleep for a day
-        if args.daemon:
+        if not args.daemon:
+            logging.info("Finish match trials!")
+            sys.exit(0)
+        else:
             time.sleep(86400)   # sleep for 24 hours
 
 if __name__ == '__main__':
