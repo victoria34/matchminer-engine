@@ -288,10 +288,13 @@ def add_trial(yml, db):
         db.trial.insert_one(t)
 
 
-def export_results(file_format, outpath):
+def export_results(file_format, outpath, uri, db_name):
     """Return csv file containing the match results to the current working directory"""
-    cmd = "mongoexport --host localhost:27017 --db matchminer -c trial_match --fields {0} " \
-          "--type {1} --out {2}.{1}".format(MATCH_FIELDS, file_format, outpath)
+    user_pass = ((uri.split('//', 1)[-1]).split('@', 1)[0]).split(':', 1)
+    user = user_pass[0]
+    password = user_pass[1]
+    address = (uri.split('@', 1)[-1]).split('/', 1)[0]
+    cmd = "mongoexport -h {3} -d {4} -u {5} -p {6} -c trial_match -f {0} --csv -o {2}.{1}".format(MATCH_FIELDS, file_format, outpath, address, db_name, user, password)
     subprocess.call(cmd.split(' '))
 
 
@@ -331,7 +334,7 @@ def match(args):
                 outpath = './results'
 
             # export results
-            export_results(file_format, outpath)
+            export_results(file_format, outpath, args.mongo_uri, db.name)
 
             break
         else:
