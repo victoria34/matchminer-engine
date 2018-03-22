@@ -294,7 +294,11 @@ def export_results(file_format, outpath, uri, db_name):
     user = user_pass[0]
     password = user_pass[1]
     address = (uri.split('@', 1)[-1]).split('/', 1)[0]
-    cmd = "mongoexport -h {3} -d {4} -u {5} -p {6} -c trial_match -f {0} --csv -o {2}.{1}".format(MATCH_FIELDS, file_format, outpath, address, db_name, user, password)
+    if file_format == 'csv':
+        cmd = "mongoexport -h {3} -d {4} -u {5} -p {6} -c trial_match -f {0} --csv -o {2}.{1}".format(MATCH_FIELDS, file_format, outpath, address, db_name, user, password)
+    elif file_format == 'json':
+        cmd = "mongoexport -h {3} -d {4} -u {5} -p {6} -c trial_match -o {2}.{1}".format(MATCH_FIELDS, file_format, outpath, address, db_name, user, password)
+
     subprocess.call(cmd.split(' '))
 
 
@@ -331,7 +335,7 @@ def match(args):
             if args.outpath:
                 outpath = args.outpath.split('.')[0]
             else:
-                outpath = './results'
+                outpath = 'results'
 
             # export results
             export_results(file_format, outpath, args.mongo_uri, db.name)
