@@ -27,7 +27,7 @@ MATCH_FIELDS = "mrn,sample_id,first_last,protocol_no,nct_id,genomic_alteration,t
 
 class Trial:
 
-    def __init__(self, db):
+    def __init__(self, uri, db):
 
         self.db = db
         self.load_dict = {
@@ -35,6 +35,10 @@ class Trial:
             'bson': self.bson_to_mongo,
             'json': self.json_to_mongo
         }
+        user_pass = ((uri.split('//', 1)[-1]).split('@', 1)[0]).split(':', 1)
+        self.user = user_pass[0]
+        self.password = user_pass[1]
+        self.address = (uri.split('@', 1)[-1]).split('/', 1)[0]
 
     def yaml_to_mongo(self, yml):
         """
@@ -58,19 +62,17 @@ class Trial:
         else:
             add_trial(yml, self.db)
 
-    @staticmethod
-    def bson_to_mongo(bson):
+    def bson_to_mongo(self, bson):
         """
         If you specify the path to a directory, all files with extension BSON will be added to MongoDB.
         If you specify the path to a specific BSON file, it will add that file to MongoDB.
 
         :param bson: Path to BSON file.
         """
-        cmd = "mongorestore --host localhost:27017 --db matchminer %s" % bson
+        cmd = "mongorestore -h %s -d %s -u %s -p %s %s" % (self.address, self.db.name, self.user, self.password, bson)
         subprocess.call(cmd.split(' '))
 
-    @staticmethod
-    def json_to_mongo(json):
+    def json_to_mongo(self, json):
         """
         If you specify the path to a directory, all files with extension JSON will be added to MongoDB.
         If you specify the path to a specific JSON file, it will add that file to MongoDB.
@@ -79,13 +81,13 @@ class Trial:
         """
         # --upsert: Replace existing documents in the database with matching documents from the import file.
         # --upsertFields: Specifies a list of fields for the query portion of the upsert.
-        cmd = "mongoimport --host localhost:27017 --db matchminer --collection trial --upsert --upsertFields nct_id --file %s" % json
+        cmd = "mongoimport -h %s -d %s -c trial --upsert -u %s -p %s --upsertFields nct_id --file %s" % (self.address, self.db.name, self.user, self.password, json)
         subprocess.call(cmd.split(' '))
 
 
 class Patient:
 
-    def __init__(self, db):
+    def __init__(self, uri, db):
 
         self.db = db
         self.load_dict = {
@@ -96,6 +98,10 @@ class Patient:
         }
         self.clinical_df = None
         self.genomic_df = None
+        user_pass = ((uri.split('//', 1)[-1]).split('@', 1)[0]).split(':', 1)
+        self.user = user_pass[0]
+        self.password = user_pass[1]
+        self.address = (uri.split('@', 1)[-1]).split('/', 1)[0]
 
     def load_csv(self, clinical, genomic):
         """Load CSV file into a Pandas dataframe"""
@@ -107,11 +113,10 @@ class Patient:
         self.clinical_df = pd.read_pickle(clinical)
         self.genomic_df = pd.read_pickle(genomic)
 
-    @staticmethod
-    def load_bson(clinical, genomic):
+    def load_bson(self, clinical, genomic):
         """Load bson file into MongoDB"""
-        cmd1 = "mongorestore --host localhost:27017 --db matchminer %s" % clinical
-        cmd2 = "mongorestore --host localhost:27017 --db matchminer %s" % genomic
+        cmd1 = "mongorestore -h %s -d %s -u %s -p %s %s" % (self.address, self.db.name, self.user, self.password, clinical)
+        cmd2 = "mongorestore -h %s -d %s -u %s -p %s %s" % (self.address, self.db.name, self.user, self.password, genomic)
         subprocess.call(cmd1.split(' '))
         subprocess.call(cmd2.split(' '))
         return True
@@ -128,8 +133,8 @@ class Patient:
               For the date fields in clinical data, the type of their values should be date object rather than string.
         """
 
-        cmd1 = "mongoimport --host localhost:27017 --db matchminer --collection clinical --file %s --upsert --upsertFields ONCOKB_CLINICAL_ID --stopOnError --jsonArray" % clinical
-        cmd2 = "mongoimport --host localhost:27017 --db matchminer --collection genomic --file %s --upsert --upsertFields ONCOKB_GENOMIC_ID --stopOnError --jsonArray" % genomic
+        cmd1 = "mongoimport -h %s -d %s -c clinical -u %s -p %s --file %s --upsert --upsertFields ONCOKB_CLINICAL_ID --stopOnError --jsonArray" % (self.address, self.db.name, self.user, self.password, clinical)
+        cmd2 = "mongoimport -h %s -d %s -c genomic -u %s -p %s --file %s --upsert --upsertFields ONCOKB_GENOMIC_ID --stopOnError --jsonArray" % (self.address, self.db.name, self.user, self.password, genomic)
         subprocess.call(cmd1.split(' '))
         subprocess.call(cmd2.split(' '))
 
@@ -137,8 +142,8 @@ class Patient:
         self.db.new_genomic.drop()
 
         # save patient data into new_genomic and new_collections for matching based on current sent data
-        cmd3 = "mongoimport --host localhost:27017 --db matchminer --collection new_clinical --file %s --upsert --upsertFields ONCOKB_CLINICAL_ID --stopOnError --jsonArray" % clinical
-        cmd4 = "mongoimport --host localhost:27017 --db matchminer --collection new_genomic --file %s --upsert --upsertFields ONCOKB_GENOMIC_ID --stopOnError --jsonArray" % genomic
+        cmd3 = "mongoimport -h %s -d %s -c new_clinical -u %s -p %s --file %s --upsert --upsertFields ONCOKB_CLINICAL_ID --stopOnError --jsonArray" % (self.address, self.db.name, self.user, self.password, clinical)
+        cmd4 = "mongoimport -h %s -d %s -c new_genomic -u %s -p %s --file %s --upsert --upsertFields ONCOKB_GENOMIC_ID --stopOnError --jsonArray" % (self.address, self.db.name, self.user, self.password, genomic)
         subprocess.call(cmd3.split(' '))
         subprocess.call(cmd4.split(' '))
 
@@ -200,8 +205,8 @@ def load(args):
     """
 
     db = get_db(args.mongo_uri)
-    t = Trial(db)
-    p = Patient(db)
+    t = Trial(args.mongo_uri, db)
+    p = Patient(args.mongo_uri, db)
 
     # Add trials to mongo
     if args.trials:
