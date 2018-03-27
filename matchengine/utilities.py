@@ -384,7 +384,7 @@ def add_matches(trial_matches_df, db):
 
     if 'report_date' in trial_matches_df.columns:
         trial_matches_df['report_date'] = trial_matches_df['report_date'].apply(
-            lambda x: dt.datetime.strftime(x, '%Y-%m-%d %X'))
+            lambda x: '' if x is pd.NaT else dt.datetime.strftime(x, '%Y-%m-%d %X'))
 
     if len(trial_matches_df.index) > 0:
         records = json.loads(trial_matches_df.T.to_json()).values()
