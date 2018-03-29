@@ -45,8 +45,10 @@ class MatchEngine(object):
         # check if match trial based on newly added clinical and genomic data
         if self.db.new_genomic.count() > 0 and self.db.new_clinical.count() > 0:
             self.query = True
+            self.oncokb_matched_results = oncokb_api_match(self.db, "new_genomic")
         else:
             self.query = False
+            self.oncokb_matched_results = oncokb_api_match(self.db, "genomic")
 
         # stores the complete list as easy lookup
         self.all_match = set(self.db.clinical.distinct('SAMPLE_ID'))
@@ -336,9 +338,8 @@ class MatchEngine(object):
             matched_sample_ids: set of matched sample ids
             matched_genomic_info: genomic information regarding each match
         """
-        results = []
+        results = list()
         matched_genomic_info = []
-        matched_hugo_results = list()
         hugo_symbol = conditions['hugo_symbol']
         oncokb_variant = conditions['oncokb_variant']
         negative_query = False
@@ -355,10 +356,6 @@ class MatchEngine(object):
             # remove "!"
             oncokb_variant = oncokb_variant[1:]
 
-        # run OncoKB match criteria
-        query = {
-            'TRUE_HUGO_SYMBOL': hugo_symbol
-        }
         proj = {
             'SAMPLE_ID': 1,
             'TRUE_HUGO_SYMBOL': 1,
@@ -370,16 +367,22 @@ class MatchEngine(object):
             'ONCOKB_GENOMIC_ID': 1
         }
 
-        if self.query :
-            # match trial for queried genomic data
-            matched_hugo_results = list(self.db.new_genomic.find(query, proj))
-        else:
-            matched_hugo_results = list(self.db.genomic.find(query, proj))
-
-        # iterate 'oncokb_variant' list
-        for genomic_item in matched_hugo_results:
-            if "ONCOKB_VARIANT" in genomic_item and genomic_item["ONCOKB_VARIANT"] and oncokb_variant in genomic_item["ONCOKB_VARIANT"]:
-                results.append(genomic_item)
+        # iterate 'oncokb_matched_results' list
+        for matched_result in self.oncokb_matched_results:
+            if matched_result['query']['hugoSymbol'] == hugo_symbol:
+                for result in matched_result['result']:
+                    if result['alteration'] == oncokb_variant:
+                        true_protein_change = matched_result['query']['alteration']
+                        # run OncoKB match criteria
+                        query = {
+                            'TRUE_HUGO_SYMBOL': hugo_symbol,
+                            'TRUE_PROTEIN_CHANGE': true_protein_change
+                        }
+                        # match trial for queried genomic data
+                        if self.query :
+                            results = results + list(self.db.new_genomic.find(query, proj))
+                        else:
+                            results = results + list(self.db.genomic.find(query, proj))
 
         if negative_query:
             matched_sample_ids = self.all_match - set(x['SAMPLE_ID']for x in results)
@@ -387,8 +390,8 @@ class MatchEngine(object):
             matched_genomic_info = [{
                 'sample_id': sample_id,
                 'match_type': 'oncokb_variant',
-                'genomic_alteration': "!" + hugo_symbol + " " + "!" + oncokb_variant,
-                "oncokb_variant": "!" + oncokb_variant
+                'genomic_alteration': '!' + hugo_symbol + ' !' + oncokb_variant,
+                'oncokb_variant': '!' + oncokb_variant
             } for sample_id in matched_sample_ids]
         else:
             matched_sample_ids = set(item['SAMPLE_ID'] for item in results)
@@ -396,7 +399,8 @@ class MatchEngine(object):
             for item in results:
                 genomic_info = {
                     'match_type': 'oncokb_variant',
-                    'genomic_alteration': hugo_symbol + " " + oncokb_variant
+                    'genomic_alteration': hugo_symbol + ' ' + oncokb_variant,
+                    'oncokb_variant': oncokb_variant
                 }
                 for field in proj:
                     if field in item:

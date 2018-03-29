@@ -6,6 +6,7 @@ import sys
 import yaml
 import json
 import logging
+import requests
 import pandas as pd
 import datetime as dt
 from pymongo import MongoClient
@@ -590,3 +591,88 @@ def check_for_genomic_node(g, node_id=1):
                     return has_genomic_nodes
 
     return False
+
+def oncokb_api_match(db,collection_name):
+    """
+    Get all trial matched results from OncoKB API
+
+    :param db: mongo database
+    :param collection_name: genomic or new_genomic
+    :return: matched results list
+    """
+
+    queries = list()
+    oncokb_variants = list()
+    matched_results = list()
+    api_url = 'http://oncokb.org/api/private/utils/match/variant'
+
+    # get genomic info from collection genomic or new_genomic
+    genomic_proj = {
+        'SAMPLE_ID': 1,
+        'TRUE_HUGO_SYMBOL': 1,
+        'TRUE_PROTEIN_CHANGE':1
+    }
+    genomic_collection = db[collection_name]
+    genomic_results = list(genomic_collection.find({},genomic_proj))
+    for genomic in genomic_results:
+        query = {
+            "id": genomic['SAMPLE_ID'],
+            "hugoSymbol": genomic['TRUE_HUGO_SYMBOL'],
+            "alteration": genomic['TRUE_PROTEIN_CHANGE']
+        }
+        queries.append(query)
+
+    # get genomic node info from collection trial
+    steps = list(db.trial.find({'treatment_list.step':{'$exists': 'true', '$ne': []}}, {'_id': 0}));
+    for step in steps:
+        for arm_match in step['treatment_list']['step']:
+            if 'arm' in arm_match and arm_match['arm']:
+                for arm in arm_match['arm']:
+                    if 'match' in arm and arm['match']:
+                        for match in arm['match']:
+                            find_genomic_node(match, oncokb_variants)
+                    if 'dose_level' in arm:
+                        for dose in arm['dose_level']:
+                            if 'match' in dose and dose['match']:
+                                for match in dose['match']:
+                                    find_genomic_node(match, oncokb_variants)
+            if 'match' in arm_match and arm_match['match']:
+                for match in arm_match['match']:
+                    find_genomic_node(match, oncokb_variants)
+
+    body = {
+        "oncokbVariants": oncokb_variants,
+        "queries": queries
+    }
+    body = json.dumps(body)
+    headers = {'Content-type': 'application/json'}
+    response = requests.post(api_url, data=body, headers=headers)
+    result = response.json()
+    for trial_match in result:
+        if trial_match['result']:
+            matched_results.append(trial_match)
+    return matched_results
+
+def find_genomic_node(match, node_infos):
+    """Find all genomic nodes under 'match' object """
+
+    if 'genomic' in match and match['genomic'] and \
+       'hugo_symbol' in match['genomic'] and match['genomic']['hugo_symbol'] and \
+       'oncokb_variant' in match['genomic'] and match['genomic']['oncokb_variant']:
+        node_infos.append(get_hugo_variant_info(match['genomic']))
+    if 'and' in match and match['and']:
+        for and_node in match['and']:
+            find_genomic_node(and_node, node_infos)
+    if 'or' in match and match['or']:
+        for or_node in match['or']:
+            find_genomic_node(or_node, node_infos)
+    return node_infos
+
+def get_hugo_variant_info(genomic_node):
+    """Get hugo_symbol and oncokb_variant from a genomic node of trials"""
+
+    oncokb_variant = {
+        "alteration": genomic_node['oncokb_variant'],
+        "hugoSymbol": genomic_node['hugo_symbol']
+    }
+    return oncokb_variant

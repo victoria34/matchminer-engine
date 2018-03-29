@@ -143,8 +143,8 @@ class Patient:
         subprocess.call(cmd4.split(' '))
 
         # convert string to date object
-        for clinical_collection in [self.db.clinical.find(), self.db.new_clinical.find()]:
-            for clinical_item in clinical_collection:
+        for collection_name in ['clinical', 'new_clinical']:
+            for clinical_item in list(self.db[collection_name].find()):
                 cols = list()
                 keys = clinical_item.keys()
                 if 'BIRTH_DATE' in keys:
@@ -155,7 +155,7 @@ class Patient:
                     if type(clinical_item[col]) is not dt.datetime:
                         clinical_item[col] = dt.datetime.strptime(str(clinical_item[col]), '%Y-%m-%d')
                         clinical_item[col] = dt.datetime.strptime(str(clinical_item[col]), '%Y-%m-%d %X')
-                        self.db.new_clinical.update({'_id':clinical_item['_id']}, {"$set": {col: clinical_item[col]}}, upsert=False)
+                        self.db[collection_name].update({'_id':clinical_item['_id']}, {"$set": {col: clinical_item[col]}}, upsert=False)
 
         return True
 
