@@ -243,6 +243,8 @@ class MatchEngine(object):
         results = list()
         # prepare genomic criteria
         g, neg, sv = self.prepare_genomic_criteria(conditions)
+        if 'no_hugo_symbol' in conditions and conditions['no_hugo_symbol']:
+            neg = True
 
         # execute match
         if len(g.keys()) == 0:
@@ -346,15 +348,8 @@ class MatchEngine(object):
 
         # Negative queries will be run as positive queries and the matched sample ids will be subtracted from
         # the set of all sample ids in the database
-        if hugo_symbol.startswith('!'):
+        if conditions['no_hugo_symbol'] or conditions['no_oncokb_variant']:
             negative_query = True
-            # remove "!"
-            hugo_symbol = hugo_symbol[1:]
-
-        if oncokb_variant.startswith('!'):
-            negative_query = True
-            # remove "!"
-            oncokb_variant = oncokb_variant[1:]
 
         proj = {
             'SAMPLE_ID': 1,
@@ -866,8 +861,13 @@ class MatchEngine(object):
                 nodes_txt = [onco_tree.node[n]['text'] for n in nodes]
 
                 if key == '$eq':
-                    key = '$in'
-                    tmpc['ONCOTREE_PRIMARY_DIAGNOSIS_NAME'][key] = nodes_txt
+                    if nodes_txt:
+                        key = '$in'
+                        tmpc['ONCOTREE_PRIMARY_DIAGNOSIS_NAME'][key] = nodes_txt
+                    else:
+                        # cannot find oncokb nodes
+                        tmpc['ONCOTREE_PRIMARY_DIAGNOSIS_NAME'][key] = c['ONCOTREE_PRIMARY_DIAGNOSIS_NAME'][key]
+                        return tmpc['ONCOTREE_PRIMARY_DIAGNOSIS_NAME']
                 elif key == '$ne':
                     key = '$nin'
                     tmpc['ONCOTREE_PRIMARY_DIAGNOSIS_NAME'][key] = nodes_txt
