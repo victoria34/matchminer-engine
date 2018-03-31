@@ -426,7 +426,11 @@ def get_db(uri):
     else:
         os.environ["MONGO_URI"] = MONGO_URI
         connection = MongoClient(MONGO_URI)
-        return connection["matchminer"]
+        if 'mlab' in MONGO_URI:
+            # heroku will assign a auto-generated mongodb that cannot be renamed
+            return connection.get_default_database()
+        else:
+            return connection["matchminer"]
 
 
 def get_structural_variants(g):

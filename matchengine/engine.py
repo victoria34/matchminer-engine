@@ -348,7 +348,7 @@ class MatchEngine(object):
 
         # Negative queries will be run as positive queries and the matched sample ids will be subtracted from
         # the set of all sample ids in the database
-        if conditions['no_hugo_symbol'] or conditions['no_oncokb_variant']:
+        if ('no_hugo_symbol' in conditions and conditions['no_hugo_symbol']) or ('no_oncokb_variant' in conditions and conditions['no_oncokb_variant']):
             negative_query = True
 
         proj = {
