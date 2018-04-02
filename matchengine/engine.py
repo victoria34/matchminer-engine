@@ -579,11 +579,11 @@ class MatchEngine(object):
             c = build_cquery(c, norm_field, txt)
 
         # stolen Jimbo's code for adding all the oncotree nodes
-        if 'ONCOTREE_PRIMARY_DIAGNOSIS_NAME' in c:
+        if 'ONCOTREE_PRIMARY_DIAGNOSIS_NAME' in c and c['ONCOTREE_PRIMARY_DIAGNOSIS_NAME']['$eq']:
             c['ONCOTREE_PRIMARY_DIAGNOSIS_NAME'] = self._search_oncotree_diagnosis(onco_tree, c)
 
         # translate yaml age restrictions into proper mongo query dates
-        if 'BIRTH_DATE' in c:
+        if 'BIRTH_DATE' in c and c['BIRTH_DATE']['$eq']:
             c['BIRTH_DATE'] = search_birth_date(c)
 
         return c
