@@ -870,7 +870,8 @@ class MatchEngine(object):
                         key = '$in'
                         tmpc['ONCOTREE_PRIMARY_DIAGNOSIS_NAME'][key] = nodes_txt
                     else:
-                        # cannot find oncokb nodes
+                        # We are using both MainType and SubType now but oncotreenx only use SubType.
+                        # TODO: We should remove this part after curation platform are ready for only using SubType.
                         tmpc['ONCOTREE_PRIMARY_DIAGNOSIS_NAME'][key] = c['ONCOTREE_PRIMARY_DIAGNOSIS_NAME'][key]
                         return tmpc['ONCOTREE_PRIMARY_DIAGNOSIS_NAME']
                 elif key == '$ne':
