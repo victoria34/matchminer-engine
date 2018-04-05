@@ -606,7 +606,7 @@ def oncokb_api_match(db,collection_name):
     """
 
     queries = list()
-    oncokb_variants = list()
+    annotated_variants = list()
     matched_results = list()
     api_url = 'http://oncokb.org/api/private/utils/match/variant'
 
@@ -634,18 +634,18 @@ def oncokb_api_match(db,collection_name):
                 for arm in arm_match['arm']:
                     if 'match' in arm and arm['match']:
                         for match in arm['match']:
-                            find_genomic_node(match, oncokb_variants)
+                            find_genomic_node(match, annotated_variants)
                     if 'dose_level' in arm:
                         for dose in arm['dose_level']:
                             if 'match' in dose and dose['match']:
                                 for match in dose['match']:
-                                    find_genomic_node(match, oncokb_variants)
+                                    find_genomic_node(match, annotated_variants)
             if 'match' in arm_match and arm_match['match']:
                 for match in arm_match['match']:
-                    find_genomic_node(match, oncokb_variants)
+                    find_genomic_node(match, annotated_variants)
 
     body = {
-        "oncokbVariants": oncokb_variants,
+        "oncokbVariants": annotated_variants,
         "queries": queries
     }
     body = json.dumps(body)
@@ -662,7 +662,7 @@ def find_genomic_node(match, node_infos):
 
     if 'genomic' in match and match['genomic'] and \
        'hugo_symbol' in match['genomic'] and match['genomic']['hugo_symbol'] and \
-       'oncokb_variant' in match['genomic'] and match['genomic']['oncokb_variant']:
+       'annotated_variant' in match['genomic'] and match['genomic']['annotated_variant']:
         node_infos.append(get_hugo_variant_info(match['genomic']))
     if 'and' in match and match['and']:
         for and_node in match['and']:
@@ -673,10 +673,10 @@ def find_genomic_node(match, node_infos):
     return node_infos
 
 def get_hugo_variant_info(genomic_node):
-    """Get hugo_symbol and oncokb_variant from a genomic node of trials"""
+    """Get hugo_symbol and annotated_variant from a genomic node of trials"""
 
-    oncokb_variant = {
-        "alteration": genomic_node['oncokb_variant'],
+    annotated_variant = {
+        "alteration": genomic_node['annotated_variant'],
         "hugoSymbol": genomic_node['hugo_symbol']
     }
-    return oncokb_variant
+    return annotated_variant

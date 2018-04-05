@@ -331,7 +331,7 @@ class MatchEngine(object):
 
     def oncokb_match(self, conditions):
         """
-        Runs genomic query based on 'oncokb_variant' against Mongo database and returns a set of sample ids that matched
+        Runs genomic query based on 'annotated_variant' against Mongo database and returns a set of sample ids that matched
 
         :param conditions: query conditions, value of genomic node with the trial match tree
         :param db: database connection
@@ -343,13 +343,20 @@ class MatchEngine(object):
         results = list()
         matched_genomic_info = []
         hugo_symbol = conditions['hugo_symbol']
-        oncokb_variant = conditions['oncokb_variant']
+        annotated_variant = conditions['annotated_variant']
         negative_query = False
 
         # Negative queries will be run as positive queries and the matched sample ids will be subtracted from
         # the set of all sample ids in the database
-        if ('no_hugo_symbol' in conditions and conditions['no_hugo_symbol']) or ('no_oncokb_variant' in conditions and conditions['no_oncokb_variant']):
+        if hugo_symbol.startswith('!'):
             negative_query = True
+            # remove "!"
+            hugo_symbol = hugo_symbol[1:]
+
+        if annotated_variant.startswith('!'):
+            negative_query = True
+            # remove "!"
+            annotated_variant = annotated_variant[1:]
 
         proj = {
             'SAMPLE_ID': 1,
@@ -357,7 +364,7 @@ class MatchEngine(object):
             'TRUE_PROTEIN_CHANGE':1,
             'TRUE_VARIANT_CLASSIFICATION':1,
             'VARIANT_CATEGORY':1,
-            'ONCOKB_VARIANT': 1,
+            'ANNOTATED_VARIANT': 1,
             '_id': 1,
             'ONCOKB_GENOMIC_ID': 1
         }
@@ -366,7 +373,7 @@ class MatchEngine(object):
         for matched_result in self.oncokb_matched_results:
             if matched_result['query']['hugoSymbol'] == hugo_symbol:
                 for result in matched_result['result']:
-                    if result['alteration'] == oncokb_variant:
+                    if result['alteration'] == annotated_variant:
                         true_protein_change = matched_result['query']['alteration']
                         # run OncoKB match criteria
                         query = {
@@ -384,18 +391,18 @@ class MatchEngine(object):
             # add genomic alterations per sample id
             matched_genomic_info = [{
                 'sample_id': sample_id,
-                'match_type': 'oncokb_variant',
-                'genomic_alteration': '!' + hugo_symbol + ' !' + oncokb_variant,
-                'oncokb_variant': '!' + oncokb_variant
+                'match_type': 'annotated_variant',
+                'genomic_alteration': '!' + hugo_symbol + ' !' + annotated_variant,
+                'annotated_variant': '!' + annotated_variant
             } for sample_id in matched_sample_ids]
         else:
             matched_sample_ids = set(item['SAMPLE_ID'] for item in results)
 
             for item in results:
                 genomic_info = {
-                    'match_type': 'oncokb_variant',
-                    'genomic_alteration': hugo_symbol + ' ' + oncokb_variant,
-                    'oncokb_variant': oncokb_variant
+                    'match_type': 'annotated_variant',
+                    'genomic_alteration': hugo_symbol + ' ' + annotated_variant,
+                    'annotated_variant': annotated_variant
                 }
                 for field in proj:
                     if field in item:
@@ -442,7 +449,7 @@ class MatchEngine(object):
                     run_general_match = True
                     break
 
-            if 'oncokb_variant' in item and item['oncokb_variant']:
+            if 'annotated_variant' in item and item['annotated_variant']:
                 oncokb_matched_sample_ids, oncokb_matched_genomic_info = self.oncokb_match(item)
 
                 # check if general_match() has been run

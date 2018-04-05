@@ -119,20 +119,20 @@ class TestMatchEngine(TestSetUp):
         assert 'actionability' in matches[0]
         assert matches[0]['mmr_status'] == 'Proficient (MMR-P / MSS)'
 
-        # test a genomic node only has 'oncokb_variant' and 'hugo_symbol'
+        # test a genomic node only has 'annotated_variant' and 'hugo_symbol'
         # run in oncokb_match()
-        self.add_genomic_oncokb_variant()
-        node = {'type': 'genomic', 'value': {'hugo_symbol': 'PIK3CA', 'oncokb_variant': 'p.H1047R'}}
+        self.add_genomic_annotated_variant()
+        node = {'type': 'genomic', 'value': {'hugo_symbol': 'PIK3CA', 'annotated_variant': 'p.H1047R'}}
         result, matches = self.me.run_query(node)
-        assert 'oncokb_variant' in matches[0]
+        assert 'annotated_variant' in matches[0]
         assert matches[0]['sample_id'] == 'FAKE-02'
 
-        # test a genomic node has 'oncokb_variant' in dfci matching criteria
+        # test a genomic node has 'annotated_variant' in dfci matching criteria
         # run in general_match() first then oncokb_match()
-        self.add_genomic_oncokb_variant_v2()
-        node = {'type': 'genomic', 'value': {'hugo_symbol': 'BRAF', 'oncokb_variant': 'T599_V600insEAT', 'wildtype': False}}
+        self.add_genomic_annotated_variant_v2()
+        node = {'type': 'genomic', 'value': {'hugo_symbol': 'BRAF', 'annotated_variant': 'T599_V600insEAT', 'wildtype': False}}
         result, matches = self.me.run_query(node)
-        assert 'oncokb_variant' in matches[0]
+        assert 'annotated_variant' in matches[0]
         assert matches[0]['sample_id'] == 'FAKE-03'
 
     def test_prepare_clinical_criteria(self):

@@ -155,18 +155,18 @@ class TestSetUp(unittest.TestCase):
         }
         self.db.genomic.insert(genomic)
 
-    def add_genomic_oncokb_variant(self):
-        """Adds a genomic with oncokb_variant"""
+    def add_genomic_annotated_variant(self):
+        """Adds a genomic with annotated_variant"""
         genomic = {
             'CLINICAL_ID': ObjectId(),
             'TRUE_HUGO_SYMBOL': 'PIK3CA',
-            'ONCOKB_VARIANT': 'p.H1047R',
+            'ANNOTATED_VARIANT': 'p.H1047R',
             'SAMPLE_ID': 'FAKE-02'
         }
         self.db.genomic.insert(genomic)
 
-    def add_genomic_oncokb_variant_v2(self):
-        """Adds a genomic with oncokb_variant in dfci matching criteria"""
+    def add_genomic_annotated_variant_v2(self):
+        """Adds a genomic with annotated_variant in dfci matching criteria"""
         genomic = {
             'TRUE_VARIANT_CLASSIFICATION': None,
             'TRUE_PROTEIN_CHANGE': 'T599_V600insEAT',
@@ -178,7 +178,7 @@ class TestSetUp(unittest.TestCase):
             'CLINICAL_ID': ObjectId(),
             'CNV_CALL': None,
             'TRUE_HUGO_SYMBOL': 'BRAF',
-            'ONCOKB_VARIANT': 'T599_V600insEAT',
+            'ANNOTATED_VARIANT': 'T599_V600insEAT',
             'SAMPLE_ID': 'FAKE-03',
             'TRUE_TRANSCRIPT_EXON': None,
             'MMR_STATUS': 'Proficient (MMR-P / MSS)'
