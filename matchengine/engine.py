@@ -666,6 +666,7 @@ class MatchEngine(object):
         all_trials = list(self.db.trial.find({}, proj))
         queried_trials_nct_id = list(self.db.trial_query.find({}, proj).distinct('nct_id'))
 
+        # Before matching, skip trials that found in history(trial_match collection)
         not_matched_trials = list()
         if self.query and queried_trials_nct_id:
             if len(all_trials) != len(queried_trials_nct_id):
@@ -691,9 +692,6 @@ class MatchEngine(object):
             # for OncoKB
             else:
                 logging.info('Matching trial %s' % trial['nct_id'])
-
-            # skip trials that found in trial_match for query_data
-
 
             # If the trial is not open to accrual, all matches to all match trees in this trial will be marked closed
             trial_status = 'open'
