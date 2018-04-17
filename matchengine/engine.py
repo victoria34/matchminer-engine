@@ -449,7 +449,8 @@ class MatchEngine(object):
                     run_general_match = True
                     break
 
-            if 'annotated_variant' in item and item['annotated_variant']:
+            # Matching trials only by "annotated_variant" is not be supported currently.
+            if 'hugo_symbol' in item and item['hugo_symbol'] and 'annotated_variant' in item and item['annotated_variant']:
                 oncokb_matched_sample_ids, oncokb_matched_genomic_info = self.oncokb_match(item)
 
                 # check if general_match() has been run
