@@ -680,3 +680,52 @@ def get_hugo_variant_info(genomic_node):
         "hugoSymbol": genomic_node['hugo_symbol']
     }
     return annotated_variant
+
+def process_cmd(type, uri, file, collection = None, upsert = None, is_json_array = False):
+    """
+    Generate mongo command line for loading data
+
+    :param type: command line type 'mongorestore' or 'mongoimport'
+    :param uri: mongo uri
+    :param collection: collection name
+    :param file: data file
+    :param upsert: store attributes related to upsert
+           upsert = {
+                 is_upsert: True/False,
+                 fields: index used to identify data record
+            }
+           --upsert: Replace existing documents in the database with matching documents from the import file.
+           --upsertFields: Specifies a list of fields for the query portion of the upsert.
+    :return: command line string
+    """
+    cmd = ''
+    if 'mlab' in uri:
+        user, password, address, dbname = process_mlab_uri(uri)
+        cmd = '%s -h %s -d %s -u %s -p %s' % (type, address, dbname, user, password)
+        if type == 'mongorestore':
+            cmd += file
+        elif type == 'mongoimport':
+            cmd += ' -c %s --file %s' % (collection, file)
+    else:
+        cmd = '%s --host localhost:27017 --db matchminer' % type
+        if type == 'mongorestore':
+            cmd += file
+        elif type == 'mongoimport':
+            cmd += ' --collection %s --file %s' % (collection, file)
+
+    if not (upsert is None) and type == 'mongoimport':
+        if upsert['is_upsert']:
+            upsert_fields = ', '.join(str(x) for x in upsert['fields'])
+            print(upsert_fields)
+            cmd += ' --upsert --upsertFields %s' % upsert_fields
+        if is_json_array:
+            cmd += ' --jsonArray'
+    return cmd
+
+def process_mlab_uri(uri):
+    user_pass = ((uri.split('//', 1)[-1]).split('@', 1)[0]).split(':', 1)
+    user = user_pass[0]
+    password = user_pass[1]
+    address = (uri.split('@', 1)[-1]).split('/', 1)[0]
+    dbname = uri.split('/')[-1]
+    return user, password, address, dbname

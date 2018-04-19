@@ -274,7 +274,7 @@ class MatchEngine(object):
                     'MMR_STATUS': 1,
                     'ACTIONABILITY': 1,
                     '_id': 1,
-                    'ONCOKB_GENOMIC_ID': 1
+                    'UNIQUE_GENOMIC_ID': 1
                 }
 
                 # record pathologist's chromosomal rearrangement comment for downstream manual analysis
@@ -366,7 +366,7 @@ class MatchEngine(object):
             'VARIANT_CATEGORY':1,
             'ANNOTATED_VARIANT': 1,
             '_id': 1,
-            'ONCOKB_GENOMIC_ID': 1
+            'UNIQUE_GENOMIC_ID': 1
         }
 
         # iterate 'oncokb_matched_results' list
@@ -757,7 +757,7 @@ class MatchEngine(object):
                     'FIRST_LAST': 1,
                     'GENDER': 1,
                     '_id': 1,
-                    'ONCOKB_CLINICAL_ID': 1
+                    'UNIQUE_CLINICAL_ID': 1
                 }
 
             if self.query:

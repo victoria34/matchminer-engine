@@ -13,7 +13,7 @@ import datetime as dt
 from pymongo import ASCENDING
 
 from matchengine.engine import MatchEngine
-from matchengine.utilities import get_db
+from matchengine.utilities import get_db, process_cmd
 
 MONGO_URI = ""
 MONGO_DBNAME = "matchminer"
@@ -27,7 +27,7 @@ MATCH_FIELDS = "mrn,sample_id,first_last,protocol_no,nct_id,genomic_alteration,t
 
 class Trial:
 
-    def __init__(self, db, uri):
+    def __init__(self, db):
 
         self.db = db
         self.load_dict = {
@@ -35,10 +35,7 @@ class Trial:
             'bson': self.bson_to_mongo,
             'json': self.json_to_mongo
         }
-        self.uri = uri
-        self.mlab = False
-        if 'mlab' in uri:
-            self.mlab= True
+        # self.uri = uri
 
     def yaml_to_mongo(self, yml):
         """
@@ -69,12 +66,7 @@ class Trial:
 
         :param bson: Path to BSON file.
         """
-
-        if self.mlab:
-            user, password, address, dbname = process_mlab_uri(self.uri)
-            cmd = "mongorestore -h %s -d %s -u %s -p %s %s" % (address, dbname, user, password, bson)
-        else:
-            cmd = "mongorestore --host localhost:27017 --db matchminer %s" % bson
+        cmd = process_cmd('mongorestore', global_mongo_uri, bson)
         subprocess.call(cmd.split(' '))
 
     def json_to_mongo(self, json):
@@ -84,20 +76,17 @@ class Trial:
 
         :param json: Path to JSON file.
         """
-        # --upsert: Replace existing documents in the database with matching documents from the import file.
-        # --upsertFields: Specifies a list of fields for the query portion of the upsert.
-
-        if self.mlab:
-            user, password, address, dbname = process_mlab_uri(self.uri)
-            cmd = "mongoimport -h %s -d %s -c trial -u %s -p %s --upsert --upsertFields nct_id --file %s" % (address, dbname, user, password, json)
-        else:
-            cmd = "mongoimport --host localhost:27017 --db matchminer --collection trial --upsert --upsertFields nct_id --file %s" % json
+        upsert = {
+            'is_upsert': True,
+            'fields': ['nct_id']
+        }
+        cmd = process_cmd('mongoimport', global_mongo_uri, json, collection='trial', upsert=upsert)
         subprocess.call(cmd.split(' '))
 
 
 class Patient:
 
-    def __init__(self, db, uri):
+    def __init__(self, db):
 
         self.db = db
         self.load_dict = {
@@ -108,10 +97,7 @@ class Patient:
         }
         self.clinical_df = None
         self.genomic_df = None
-        self.uri = uri
-        self.mlab = False
-        if 'mlab' in uri:
-            self.mlab= True
+        # self.uri = uri
 
     def load_csv(self, clinical, genomic):
         """Load CSV file into a Pandas dataframe"""
@@ -126,13 +112,8 @@ class Patient:
 
     def load_bson(self, clinical, genomic):
         """Load bson file into MongoDB"""
-        if self.mlab:
-            user, password, address, dbname = process_mlab_uri(self.uri)
-            cmd1 = "mongorestore -h %s -d %s -u %s -p %s %s" % (address, dbname, user, password, clinical)
-            cmd2 = "mongorestore -h %s -d %s -u %s -p %s %s" % (address, dbname, user, password, genomic)
-        else:
-            cmd1 = "mongorestore --host localhost:27017 --db matchminer %s" % clinical
-            cmd2 = "mongorestore --host localhost:27017 --db matchminer %s" % genomic
+        cmd1 = process_cmd('mongorestore', global_mongo_uri, clinical)
+        cmd2 = process_cmd('mongorestore', global_mongo_uri, genomic)
         subprocess.call(cmd1.split(' '))
         subprocess.call(cmd2.split(' '))
         return True
@@ -148,26 +129,24 @@ class Patient:
               For the false fields in genomic data, their values should be false rather than "false".
               For the date fields in clinical data, the type of their values should be date object rather than string.
         """
-        user, password, address, dbname = process_mlab_uri(self.uri)
-        if self.mlab:
-            cmd1 = "mongoimport -h %s -d %s -c clinical -u %s -p %s --file %s --upsert --upsertFields ONCOKB_CLINICAL_ID --stopOnError --jsonArray" % (address, dbname, user, password, clinical)
-            cmd2 = "mongoimport -h %s -d %s -c genomic -u %s -p %s --file %s --upsert --upsertFields ONCOKB_GENOMIC_ID --stopOnError --jsonArray" % (address, dbname, user, password, genomic)
-        else:
-            cmd1 = "mongoimport --host localhost:27017 --db matchminer --collection clinical --file %s --upsert --upsertFields ONCOKB_CLINICAL_ID --stopOnError --jsonArray" % clinical
-            cmd2 = "mongoimport --host localhost:27017 --db matchminer --collection genomic --file %s --upsert --upsertFields ONCOKB_GENOMIC_ID --stopOnError --jsonArray" % genomic
+        clinical_upsert = {
+            'is_upsert': True,
+            'fields': ['UNIQUE_CLINICAL_ID']
+        }
+        genomic_upsert = {
+            'is_upsert': True,
+            'fields': ['UNIQUE_GENOMIC_ID']
+        }
+        cmd1 = process_cmd('mongoimport', global_mongo_uri, clinical, collection='clinical', upsert=clinical_upsert, is_json_array=True)
+        cmd2 = process_cmd('mongoimport', global_mongo_uri, genomic, collection='genomic', upsert=genomic_upsert, is_json_array=True)
         subprocess.call(cmd1.split(' '))
         subprocess.call(cmd2.split(' '))
 
         self.db.new_clinical.drop()
         self.db.new_genomic.drop()
 
-        # save patient data into new_genomic and new_collections for matching based on current sent data
-        if self.mlab:
-            cmd3 = "mongoimport -h %s -d %s -c new_clinical -u %s -p %s --file %s --upsert --upsertFields ONCOKB_CLINICAL_ID --stopOnError --jsonArray" % (address, dbname, user, password, clinical)
-            cmd4 = "mongoimport -h %s -d %s -c new_genomic -u %s -p %s --file %s --upsert --upsertFields ONCOKB_GENOMIC_ID --stopOnError --jsonArray" % (address, dbname, user, password, genomic)
-        else:
-            cmd3 = "mongoimport --host localhost:27017 --db matchminer --collection new_clinical --file %s --upsert --upsertFields ONCOKB_CLINICAL_ID --stopOnError --jsonArray" % clinical
-            cmd4 = "mongoimport --host localhost:27017 --db matchminer --collection new_genomic --file %s --upsert --upsertFields ONCOKB_GENOMIC_ID --stopOnError --jsonArray" % genomic
+        cmd3 = process_cmd('mongoimport', global_mongo_uri, clinical, collection='new_clinical', upsert=clinical_upsert, is_json_array=True)
+        cmd4 = process_cmd('mongoimport', global_mongo_uri, genomic, collection='new_genomic', upsert=genomic_upsert, is_json_array=True)
         subprocess.call(cmd3.split(' '))
         subprocess.call(cmd4.split(' '))
 
@@ -229,8 +208,10 @@ def load(args):
     """
 
     db = get_db(args.mongo_uri)
-    t = Trial(db, args.mongo_uri)
-    p = Patient(db, args.mongo_uri)
+    global global_mongo_uri
+    global_mongo_uri= args.mongo_uri
+    t = Trial(db)
+    p = Patient(db)
 
     # Add trials to mongo
     if args.trials:
@@ -297,14 +278,6 @@ def load(args):
     elif args.clinical and not args.genomic or args.genomic and not args.clinical:
         logging.error('If loading patient information, please provide both clinical and genomic data.')
         sys.exit(1)
-
-def process_mlab_uri(uri):
-    user_pass = ((uri.split('//', 1)[-1]).split('@', 1)[0]).split(':', 1)
-    user = user_pass[0]
-    password = user_pass[1]
-    address = (uri.split('@', 1)[-1]).split('/', 1)[0]
-    dbname = uri.split('/')[-1]
-    return user, password, address, dbname
 
 def add_trial(yml, db):
     """
