@@ -13,7 +13,7 @@ import datetime as dt
 from pymongo import ASCENDING
 
 from matchengine.engine import MatchEngine
-from matchengine.utilities import get_db, process_cmd
+from matchengine.utilities import get_db, process_cmd, set_match_method
 
 MONGO_URI = ""
 MONGO_DBNAME = "matchminer"
@@ -307,6 +307,7 @@ def match(args):
     """
 
     db = get_db(args.mongo_uri)
+    set_match_method(args.match_method)
 
     while True:
         me = MatchEngine(db)
@@ -360,6 +361,7 @@ if __name__ == '__main__':
     param_outpath_help = 'Destination and name of your results file.'
     param_trial_format_help = 'File format of input trial data. Default is YML.'
     param_patient_format_help = 'File format of input patient data (both clinical and genomic files). Default is CSV.'
+    param_match_method_help = 'Match method name. The default is oncokb and uses oncokb_match().'
 
     # mode parser.
     main_p = argparse.ArgumentParser()
@@ -388,6 +390,7 @@ if __name__ == '__main__':
     # match
     subp_p = subp.add_parser('match', help='Matches all trials in database to patients')
     subp_p.add_argument('--mongo-uri', dest='mongo_uri', required=False, default=None, help=param_mongo_uri_help)
+    subp_p.add_argument('--match-method', dest="match_method", required=False, default="oncokb", help=param_match_method_help)
     subp_p.add_argument('--daemon', dest="daemon", required=False, action="store_true", help=param_daemon_help)
     subp_p.add_argument('--json', dest="json_format", required=False, action="store_true", help=param_json_help)
     subp_p.add_argument('--csv', dest="csv_format", required=False, action="store_true", help=param_csv_help)

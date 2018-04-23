@@ -716,7 +716,6 @@ def process_cmd(type, uri, file, collection = None, upsert = None, is_json_array
     if not (upsert is None) and type == 'mongoimport':
         if upsert['is_upsert']:
             upsert_fields = ', '.join(str(x) for x in upsert['fields'])
-            print(upsert_fields)
             cmd += ' --upsert --upsertFields %s' % upsert_fields
         if is_json_array:
             cmd += ' --jsonArray'
@@ -729,3 +728,10 @@ def process_mlab_uri(uri):
     address = (uri.split('@', 1)[-1]).split('/', 1)[0]
     dbname = uri.split('/')[-1]
     return user, password, address, dbname
+
+def set_match_method(method):
+    global match_method
+    match_method = method
+
+def get_match_method():
+    return match_method

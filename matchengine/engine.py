@@ -42,13 +42,23 @@ class MatchEngine(object):
         # get the database.
         self.db = db
 
+        # get match_type to decide use which match method. The default is oncokb_match() and general_match()
+        self.match_method = get_match_method()
         # check if match trial based on newly added clinical and genomic data
         if self.db.new_genomic.count() > 0 and self.db.new_clinical.count() > 0:
             self.query = True
-            self.oncokb_matched_results = oncokb_api_match(self.db, "new_genomic")
+            if self.match_method and self.match_method != 'oncokb':
+                # Todo: Use other match methods
+                print("Match method: %s" % self.match_method)
+            else:
+                self.oncokb_matched_results = oncokb_api_match(self.db, "new_genomic")
         else:
             self.query = False
-            self.oncokb_matched_results = oncokb_api_match(self.db, "genomic")
+            if self.match_method and self.match_method != 'oncokb':
+                # Todo: Use other match methods
+                print("Match method: %s" % self.match_method)
+            else:
+                self.oncokb_matched_results = oncokb_api_match(self.db, "genomic")
 
         # stores the complete list as easy lookup
         self.all_match = set(self.db.clinical.distinct('SAMPLE_ID'))
