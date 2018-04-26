@@ -129,6 +129,9 @@ class Patient:
               For the false fields in genomic data, their values should be false rather than "false".
               For the date fields in clinical data, the type of their values should be date object rather than string.
         """
+        delete_empty_fields(clinical)
+        delete_empty_fields(genomic)
+
         clinical_upsert = {
             'is_upsert': True,
             'fields': ['UNIQUE_CLINICAL_ID']
@@ -291,6 +294,16 @@ def add_trial(yml, db):
         t = yaml.load(f.read())
         db.trial.insert_one(t)
 
+def delete_empty_fields(file):
+    with open(file) as json_data:
+        data = json.load(json_data)
+        for item in data:
+            cols = list(item.keys())
+            for col in cols:
+                if not item[col] or item[col] == ' ':
+                    del item[col]
+    with open(file, 'w') as filter_file:
+        json.dump(data, filter_file)
 
 def export_results(file_format, outpath):
     """Return csv file containing the match results to the current working directory"""
