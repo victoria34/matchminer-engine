@@ -31,11 +31,12 @@ def add_sort_order(trial_matches):
     f3 = (trial_match_df['genomic_alteration'].str.strip().str.title() != 'Structural Variation')
     all_sample_ids = trial_match_df.sample_id.unique().tolist()
     master_sort_order = {}
-
+    print(all_sample_ids)
     for sample_id in all_sample_ids:
         f4 = (trial_match_df['sample_id'] == sample_id)
         df = trial_match_df[f1 & f2 & f3 & f4]
         matches = df.T.to_dict().values()
+        print(matches)
 
         # The sort order dictionary keeps track of the priority for each sort category for each match
         # Index 0 is sorted by tier with values 0 to 8
@@ -47,7 +48,10 @@ def add_sort_order(trial_matches):
 
         for match in matches:
 
-            idx = (match['sample_id'], match['protocol_no'])
+            idx = (match['sample_id'])
+            if 'protocol_no' in match and match['protocol_no']:
+                idx = (match['sample_id'], match['protocol_no'])
+            print("\n\n"+idx+"\n\n")
             if idx not in sort_order:
                 sort_order[idx] = []
 
