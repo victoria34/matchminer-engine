@@ -58,7 +58,8 @@ def add_sort_order(trial_matches):
             sort_order = sort_by_cancer_type(match, sort_order)
             sort_order = sort_by_coordinating_center(match, sort_order)
 
-        sort_order = sort_by_reverse_protocol_no(matches, sort_order)
+        # TODO: Get 'protocol_no' back
+        # sort_order = sort_by_reverse_protocol_no(matches, sort_order)
 
         # for k, v in sort_order.iteritems():
         #     print '%s | %s' % (k, v)
