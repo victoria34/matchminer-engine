@@ -727,9 +727,10 @@ class MatchEngine(object):
                         for dose in arm['dose_level']:
                             if 'match' in dose and dose['match']:
                                 trial_matches = self._assess_match(mrn_map, trial_matches, trial, dose, 'dose', trial_status)
+
         logging.info('trial_matches: %s' % trial_matches)
         logging.info('Sorting trial matches')
-        # trial_matches = add_sort_order(trial_matches)
+        trial_matches = add_sort_order(trial_matches)
 
         # add to db
         logging.info('Adding trial matches to database collection "trial_matches" and "new_trial_match"')
