@@ -82,7 +82,10 @@ def sort_by_tier(match, sort_order):
     Highest priority sorting
     """
 
-    idx = (match['sample_id'], match['protocol_no'])
+    if 'protocol_no' in match and match['protocol_no']:
+        idx = (match['sample_id'], match['protocol_no'])
+    else:
+        idx = (match['sample_id'])
 
     if 'mmr_status' in match and pd.notnull(match['mmr_status']):
         sort_order[idx] = add_sort_value(sort_value=0,
@@ -137,7 +140,10 @@ def sort_by_match_type(match, sort_order):
     Second highest priority sorting
     """
 
-    idx = (match['sample_id'], match['protocol_no'])
+    if 'protocol_no' in match and match['protocol_no']:
+        idx = (match['sample_id'], match['protocol_no'])
+    else:
+        idx = (match['sample_id'])
 
     if 'match_type' in match and match['match_type'] == 'variant':
         sort_order[idx] = add_sort_value(sort_value=0,
@@ -161,7 +167,10 @@ def sort_by_cancer_type(match, sort_order):
     Third highest priority sorting
     """
 
-    idx = (match['sample_id'], match['protocol_no'])
+    if 'protocol_no' in match and match['protocol_no']:
+        idx = (match['sample_id'], match['protocol_no'])
+    else:
+        idx = (match['sample_id'])
 
     if 'cancer_type_match' in match and match['cancer_type_match'] == 'specific':
         sort_order[idx] = add_sort_value(sort_value=0,
@@ -191,7 +200,10 @@ def sort_by_coordinating_center(match, sort_order):
     Fourth highest priority sorting
     """
 
-    idx = (match['sample_id'], match['protocol_no'])
+    if 'protocol_no' in match and match['protocol_no']:
+        idx = (match['sample_id'], match['protocol_no'])
+    else:
+        idx = (match['sample_id'])
 
     if 'coordinating_center' in match and match['coordinating_center'] == 'Dana-Farber Cancer Institute':
         sort_order[idx] = add_sort_value(sort_value=0,
