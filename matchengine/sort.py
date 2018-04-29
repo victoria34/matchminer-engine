@@ -31,12 +31,10 @@ def add_sort_order(trial_matches):
     f3 = (trial_match_df['genomic_alteration'].str.strip().str.title() != 'Structural Variation')
     all_sample_ids = trial_match_df.sample_id.unique().tolist()
     master_sort_order = {}
-    print(all_sample_ids)
     for sample_id in all_sample_ids:
         f4 = (trial_match_df['sample_id'] == sample_id)
         df = trial_match_df[f1 & f2 & f3 & f4]
         matches = df.T.to_dict().values()
-        print(matches)
 
         # The sort order dictionary keeps track of the priority for each sort category for each match
         # Index 0 is sorted by tier with values 0 to 8
@@ -48,10 +46,10 @@ def add_sort_order(trial_matches):
 
         for match in matches:
 
+            # TODO: Get 'protocol_no' back
             idx = (match['sample_id'])
-            if 'protocol_no' in match and match['protocol_no']:
-                idx = (match['sample_id'], match['protocol_no'])
-            print("\n\n"+idx+"\n\n")
+            # if 'protocol_no' in match and match['protocol_no']:
+            #     idx = (match['sample_id'], match['protocol_no'])
             if idx not in sort_order:
                 sort_order[idx] = []
 
@@ -67,9 +65,14 @@ def add_sort_order(trial_matches):
 
         master_sort_order = final_sort(sort_order, master_sort_order)
 
+        # TODO: Get 'protocol_no' back
+        # if master_sort_order:
+        #     trial_match_df['sort_order'] = trial_match_df.apply(lambda x: master_sort_order[(x['sample_id'], x['protocol_no'])]
+        #                                                         if (x['sample_id'], x['protocol_no']) in master_sort_order
+        #                                                         else -1, axis=1)
         if master_sort_order:
-            trial_match_df['sort_order'] = trial_match_df.apply(lambda x: master_sort_order[(x['sample_id'], x['protocol_no'])]
-                                                                if (x['sample_id'], x['protocol_no']) in master_sort_order
+            trial_match_df['sort_order'] = trial_match_df.apply(lambda x: master_sort_order[(x['sample_id'])]
+                                                                if (x['sample_id']) in master_sort_order
                                                                 else -1, axis=1)
     return trial_match_df
 
