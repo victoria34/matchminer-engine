@@ -729,7 +729,6 @@ class MatchEngine(object):
                                 if 'match' in dose and dose['match']:
                                     trial_matches = self._assess_match(mrn_map, trial_matches, trial, dose, 'dose', trial_status)
 
-        logging.info('trial_matches: %s' % trial_matches)
         logging.info('Sorting trial matches')
         trial_matches = add_sort_order(trial_matches)
 
