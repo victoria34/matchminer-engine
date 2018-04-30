@@ -718,15 +718,16 @@ class MatchEngine(object):
                     trial_matches = self._assess_match(mrn_map, trial_matches, trial, step, 'step', trial_status)
 
                 # ARM #
-                for arm in step['arm']:
-                    if 'match' in arm and arm['match']:
-                        trial_matches = self._assess_match(mrn_map, trial_matches, trial, arm, 'arm', trial_status)
+                if 'arm' in step and step['arm']:
+                    for arm in step['arm']:
+                        if 'match' in arm and arm['match']:
+                            trial_matches = self._assess_match(mrn_map, trial_matches, trial, arm, 'arm', trial_status)
 
-                    # DOSE #
-                    if 'dose_level' in arm:
-                        for dose in arm['dose_level']:
-                            if 'match' in dose and dose['match']:
-                                trial_matches = self._assess_match(mrn_map, trial_matches, trial, dose, 'dose', trial_status)
+                        # DOSE #
+                        if 'dose_level' in arm:
+                            for dose in arm['dose_level']:
+                                if 'match' in dose and dose['match']:
+                                    trial_matches = self._assess_match(mrn_map, trial_matches, trial, dose, 'dose', trial_status)
 
         logging.info('trial_matches: %s' % trial_matches)
         logging.info('Sorting trial matches')
