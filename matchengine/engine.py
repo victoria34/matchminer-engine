@@ -824,7 +824,7 @@ class MatchEngine(object):
                     if 'arm_name' in trial_segment:
                         match['arm_name'] = str(trial_segment['arm_name'])
                     if 'arm_description' in trial_segment:
-                        match['arm_description'] = str(trial_segment['arm_description'])
+                        match['arm_description'] = trial_segment['arm_description'].encode('utf-8')
                 elif match_segment == 'step':
                     if 'step_internal_id' in trial_segment:
                         match['internal_id'] = str(trial_segment['step_internal_id'])
