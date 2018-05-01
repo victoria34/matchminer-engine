@@ -602,12 +602,37 @@ def oncokb_api_match(db,collection_name):
 
     :param db: mongo database
     :param collection_name: genomic or new_genomic
-    :return: matched results list
+    :return: matched result object
+
+    matched result object data structure:
+    {
+        gene: {
+            proteinChange: [variants]
+        },
+        ......
+    }
+
+    matched result object example:
+    {
+      'TP53': {
+        'H214L': [
+          'Oncogenic Mutations'
+        ]
+      },
+      'BRAF': {
+        'V600E': [
+          'Oncogenic Mutations',
+          'V600',
+          'V600E'
+        ]
+      }
+    }
+
     """
 
     queries = list()
     annotated_variants = list()
-    matched_results = list()
+    matched_results = {}
     api_url = 'http://oncokb.org/api/private/utils/match/variant'
 
     # get genomic info from collection genomic or new_genomic
@@ -654,7 +679,16 @@ def oncokb_api_match(db,collection_name):
     result = response.json()
     for trial_match in result:
         if trial_match['result']:
-            matched_results.append(trial_match)
+            protein_change = trial_match['query']['alteration']
+            for genomic_alteration in trial_match['result']:
+                if genomic_alteration['hugoSymbol'] in matched_results:
+                    if protein_change in matched_results[genomic_alteration['hugoSymbol']] and \
+                        genomic_alteration['alteration'] not in matched_results[genomic_alteration['hugoSymbol']][protein_change]:
+                        matched_results[genomic_alteration['hugoSymbol']][protein_change].append(genomic_alteration['alteration'])
+                else:
+                    matched_results[genomic_alteration['hugoSymbol']] = {
+                        protein_change:[genomic_alteration['alteration']]
+                    }
     return matched_results
 
 def find_genomic_node(match, node_infos):

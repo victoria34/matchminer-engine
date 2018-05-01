@@ -51,14 +51,14 @@ class MatchEngine(object):
                 # Todo: Use other match methods
                 print("Match method: %s" % self.match_method)
             else:
-                self.oncokb_matched_results = oncokb_api_match(self.db, "new_genomic")
+                self.oncokb_matched_result = oncokb_api_match(self.db, "new_genomic")
         else:
             self.query = False
             if self.match_method and self.match_method != 'oncokb':
                 # Todo: Use other match methods
                 print("Match method: %s" % self.match_method)
             else:
-                self.oncokb_matched_results = oncokb_api_match(self.db, "genomic")
+                self.oncokb_matched_result = oncokb_api_match(self.db, "genomic")
 
         # stores the complete list as easy lookup
         self.all_match = set(self.db.clinical.distinct('SAMPLE_ID'))
@@ -380,21 +380,20 @@ class MatchEngine(object):
         }
 
         # iterate 'oncokb_matched_results' list
-        for matched_result in self.oncokb_matched_results:
-            if matched_result['query']['hugoSymbol'] == hugo_symbol:
-                for result in matched_result['result']:
-                    if result['alteration'] == annotated_variant:
-                        true_protein_change = matched_result['query']['alteration']
-                        # run OncoKB match criteria
-                        query = {
-                            'TRUE_HUGO_SYMBOL': hugo_symbol,
-                            'TRUE_PROTEIN_CHANGE': true_protein_change
-                        }
-                        # match trial for queried genomic data
-                        if self.query :
-                            results = results + list(self.db.new_genomic.find(query, proj))
-                        else:
-                            results = results + list(self.db.genomic.find(query, proj))
+        if hugo_symbol in self.oncokb_matched_result and self.oncokb_matched_result[hugo_symbol]:
+            hugo_matched_result = self.oncokb_matched_result[hugo_symbol]
+            for key in hugo_matched_result.keys():
+                if annotated_variant in hugo_matched_result[key]:
+                    # run OncoKB match criteria
+                    query = {
+                        'TRUE_HUGO_SYMBOL': hugo_symbol,
+                        'TRUE_PROTEIN_CHANGE': key
+                    }
+                    # match trial for queried genomic data
+                    if self.query:
+                        results = results + list(self.db.new_genomic.find(query, proj))
+                    else:
+                        results = results + list(self.db.genomic.find(query, proj))
 
         if negative_query:
             matched_sample_ids = self.all_match - set(x['SAMPLE_ID']for x in results)
