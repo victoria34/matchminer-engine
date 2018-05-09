@@ -6,6 +6,7 @@ import sys
 import yaml
 import json
 import logging
+import requests
 import pandas as pd
 import datetime as dt
 from pymongo import MongoClient
@@ -424,7 +425,11 @@ def get_db(uri):
     else:
         os.environ["MONGO_URI"] = MONGO_URI
         connection = MongoClient(MONGO_URI)
-        return connection["matchminer"]
+        if 'mlab' in MONGO_URI:
+            # heroku will assign a auto-generated mongodb that cannot be renamed
+            return connection.get_default_database()
+        else:
+            return connection["matchminer"]
 
 
 def get_structural_variants(g):
@@ -494,3 +499,266 @@ def get_coordinating_center(trial):
         return 'unknown'
     else:
         return trial['_summary']['coordinating_center']
+
+def check_for_genomic_node(g, node_id=1):
+    """
+    Recursively iterates down a networkx graph containing a trial's
+    match information, checking for genomic node types.
+
+    A node is clinical only if its parent is an "or" and that parents' non-self children are not
+    clinical nodes. E.g.
+
+    (1)
+           |--- Clinical
+    and ---|
+           |     |------ Genomic        --> NOT clinical only
+           |--- and
+                 |------ Genomic
+
+    (2)
+           |--- Clinical
+    and ---|
+           |     |------ Genomic        --> NOT clinical only
+           |---- or
+                 |------ Genomic
+
+    (3)
+                 |--- Clinical
+           |---- or
+           |     |--- Clinical
+    and ---|                            --> NOT clinical only
+           |     |------ Genomic
+           |--- and
+                 |------ Genomic
+
+    (4)
+           |--- Clinical
+    or ----|
+           |     |------ Genomic        --> YES clinical only
+           |--- and
+                 |------ Genomic
+
+    More complex versions of this pattern prevent assuming a root-level "or" with a clinical child as being
+    a clinical only node. This root-level or could encompass subtrees with both genomically dependent and indepedent
+    clinical clauses.
+
+    :param g: Networkx graph
+    :param node_id: ID of the current node. Default starts with the base node.
+    :return: True or False: True means a genomic node exists in the graph; False means none exists.
+    """
+
+    current_node = g.node[node_id]
+
+    # assess current node
+    if current_node['type'] == 'genomic':
+        return True
+
+    # assess children of current node
+    children = g.successors(node_id)
+    for child_node_id in children:
+        child_node = g.node[child_node_id]
+        if child_node['type'] == 'genomic':
+            return True
+
+    # assess current node in the context of its parents' children
+    parents = g.predecessors(node_id)
+    parent_nodes = [g.node[i] for i in parents]
+    parents_children = []
+    for parent_node_id in parents:
+        parents_children.extend(g.successors(parent_node_id))
+
+    # assess sibling node
+    for sibling_id in parents_children:
+        sibling_node = g.node[sibling_id]
+        if sibling_node['type'] == 'genomic':
+            return True
+
+    for parent_node_id, parent_node in zip(parents, parent_nodes):
+
+        if current_node['type'] == 'clinical' and parent_node['type'] == 'or':
+            this_parents_children = [i for i in g.successors(parent_node_id) if i != node_id]
+            for this_parents_child in this_parents_children:
+                this_parents_child_node = g.node[this_parents_child]
+                if this_parents_child_node['type'] != 'clinical':
+                    return False
+        else:
+            child_node_ids = []
+            for parents_child_node_id in parents_children:
+                if parents_child_node_id != node_id:
+                    child_node_ids.extend(g.successors(parents_child_node_id))
+
+            for child_node_id in child_node_ids:
+                has_genomic_nodes = check_for_genomic_node(g, node_id=child_node_id)
+                if has_genomic_nodes:
+                    return has_genomic_nodes
+
+    return False
+
+def oncokb_api_match(db,collection_name):
+    """
+    Get all trial matched results from OncoKB API
+    :param db: mongo database
+    :param collection_name: genomic or new_genomic
+    :return: matched result object
+    matched result object data structure:
+    {
+        gene: {
+            proteinChange: [variants]
+        },
+        ......
+    }
+    matched result object example:
+    {
+      'TP53': {
+        'H214L': [
+          'Oncogenic Mutations'
+        ]
+      },
+      'BRAF': {
+        'V600E': [
+          'Oncogenic Mutations',
+          'V600',
+          'V600E'
+        ]
+      }
+    }
+    """
+
+    queries = list()
+    annotated_variants = list()
+    matched_results = {}
+    api_url = 'http://oncokb.org/api/private/utils/match/variant'
+
+    # get genomic info from collection genomic or new_genomic
+    genomic_proj = {
+        'SAMPLE_ID': 1,
+        'TRUE_HUGO_SYMBOL': 1,
+        'TRUE_PROTEIN_CHANGE':1
+    }
+    genomic_collection = db[collection_name]
+    genomic_results = list(genomic_collection.find({},genomic_proj))
+    for genomic in genomic_results:
+        query = {
+            "id": genomic['SAMPLE_ID'],
+            "hugoSymbol": genomic['TRUE_HUGO_SYMBOL'],
+            "alteration": genomic['TRUE_PROTEIN_CHANGE']
+        }
+        queries.append(query)
+
+    # get genomic node info from collection trial
+    steps = list(db.trial.find({'treatment_list.step':{'$exists': 'true', '$ne': []}}, {'_id': 0}));
+    for step in steps:
+        for arm_match in step['treatment_list']['step']:
+            if 'arm' in arm_match and arm_match['arm']:
+                for arm in arm_match['arm']:
+                    if 'match' in arm and arm['match']:
+                        for match in arm['match']:
+                            find_genomic_node(match, annotated_variants)
+                    if 'dose_level' in arm:
+                        for dose in arm['dose_level']:
+                            if 'match' in dose and dose['match']:
+                                for match in dose['match']:
+                                    find_genomic_node(match, annotated_variants)
+            if 'match' in arm_match and arm_match['match']:
+                for match in arm_match['match']:
+                    find_genomic_node(match, annotated_variants)
+
+    body = {
+        "oncokbVariants": annotated_variants,
+        "queries": queries
+    }
+    body = json.dumps(body)
+    headers = {'Content-type': 'application/json'}
+    response = requests.post(api_url, data=body, headers=headers)
+    result = response.json()
+    for trial_match in result:
+        if trial_match['result']:
+            protein_change = trial_match['query']['alteration']
+            for genomic_alteration in trial_match['result']:
+                if genomic_alteration['hugoSymbol'] in matched_results:
+                    if protein_change in matched_results[genomic_alteration['hugoSymbol']] and \
+                                    genomic_alteration['alteration'] not in matched_results[genomic_alteration['hugoSymbol']][protein_change]:
+                        matched_results[genomic_alteration['hugoSymbol']][protein_change].append(genomic_alteration['alteration'])
+                else:
+                    matched_results[genomic_alteration['hugoSymbol']] = {
+                        protein_change:[genomic_alteration['alteration']]
+                    }
+    return matched_results
+
+def find_genomic_node(match, node_infos):
+    """Find all genomic nodes under 'match' object """
+
+    if 'genomic' in match and match['genomic'] and \
+                    'hugo_symbol' in match['genomic'] and match['genomic']['hugo_symbol'] and \
+                    'annotated_variant' in match['genomic'] and match['genomic']['annotated_variant']:
+        node_infos.append(get_hugo_variant_info(match['genomic']))
+    if 'and' in match and match['and']:
+        for and_node in match['and']:
+            find_genomic_node(and_node, node_infos)
+    if 'or' in match and match['or']:
+        for or_node in match['or']:
+            find_genomic_node(or_node, node_infos)
+    return node_infos
+
+def get_hugo_variant_info(genomic_node):
+    """Get hugo_symbol and annotated_variant from a genomic node of trials"""
+
+    annotated_variant = {
+        "alteration": genomic_node['annotated_variant'],
+        "hugoSymbol": genomic_node['hugo_symbol']
+    }
+    return annotated_variant
+
+def process_cmd(type, uri, file, collection = None, upsert = None, is_json_array = False):
+    """
+    Generate mongo command line for loading data
+    :param type: command line type 'mongorestore' or 'mongoimport'
+    :param uri: mongo uri
+    :param collection: collection name
+    :param file: data file
+    :param upsert: store attributes related to upsert
+           upsert = {
+                 is_upsert: True/False,
+                 fields: index used to identify data record
+            }
+           --upsert: Replace existing documents in the database with matching documents from the import file.
+           --upsertFields: Specifies a list of fields for the query portion of the upsert.
+    :return: command line string
+    """
+    cmd = ''
+    if 'mlab' in uri:
+        user, password, address, dbname = process_mlab_uri(uri)
+        cmd = '%s -h %s -d %s -u %s -p %s' % (type, address, dbname, user, password)
+        if type == 'mongorestore':
+            cmd += file
+        elif type == 'mongoimport':
+            cmd += ' -c %s --file %s' % (collection, file)
+    else:
+        cmd = '%s --host localhost:27017 --db matchminer' % type
+        if type == 'mongorestore':
+            cmd += file
+        elif type == 'mongoimport':
+            cmd += ' --collection %s --file %s' % (collection, file)
+
+    if not (upsert is None) and type == 'mongoimport':
+        if upsert['is_upsert']:
+            upsert_fields = ', '.join(str(x) for x in upsert['fields'])
+            cmd += ' --upsert --upsertFields %s' % upsert_fields
+        if is_json_array:
+            cmd += ' --jsonArray'
+    return cmd
+
+def process_mlab_uri(uri):
+    user_pass = ((uri.split('//', 1)[-1]).split('@', 1)[0]).split(':', 1)
+    user = user_pass[0]
+    password = user_pass[1]
+    address = (uri.split('@', 1)[-1]).split('/', 1)[0]
+    dbname = uri.split('/')[-1]
+    return user, password, address, dbname
+
+def set_match_method(method):
+    global match_method
+    match_method = method
+
+def get_match_method():
+    return match_method
