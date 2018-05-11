@@ -130,16 +130,8 @@ class Patient:
         delete_empty_fields(clinical)
         delete_empty_fields(genomic)
 
-        clinical_upsert = {
-            'is_upsert': True,
-            'fields': ['UNIQUE_CLINICAL_ID']
-        }
-        genomic_upsert = {
-            'is_upsert': True,
-            'fields': ['UNIQUE_GENOMIC_ID']
-        }
-        cmd1 = process_cmd('mongoimport', global_mongo_uri, clinical, collection='clinical', upsert=clinical_upsert, is_json_array=True)
-        cmd2 = process_cmd('mongoimport', global_mongo_uri, genomic, collection='genomic', upsert=genomic_upsert, is_json_array=True)
+        cmd1 = process_cmd('mongoimport', global_mongo_uri, clinical, collection='clinical', is_json_array=True)
+        cmd2 = process_cmd('mongoimport', global_mongo_uri, genomic, collection='genomic', is_json_array=True)
         subprocess.call(cmd1.split(' '))
         subprocess.call(cmd2.split(' '))
 
