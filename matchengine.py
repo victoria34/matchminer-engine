@@ -13,7 +13,7 @@ import datetime as dt
 from pymongo import ASCENDING
 
 from matchengine.engine import MatchEngine
-from matchengine.utilities import get_db, process_cmd, set_match_method
+from matchengine.utilities import get_db, process_cmd, set_match_method, dump_collection, restore_collection
 
 MONGO_URI = ""
 MONGO_DBNAME = "matchminer"
@@ -27,7 +27,7 @@ MATCH_FIELDS = "mrn,sample_id,first_last,protocol_no,nct_id,genomic_alteration,t
 
 class Trial:
 
-    def __init__(self, db):
+    def __init__(self, db, args):
 
         self.db = db
         self.load_dict = {
@@ -35,6 +35,7 @@ class Trial:
             'bson': self.bson_to_mongo,
             'json': self.json_to_mongo
         }
+        self.mongo_uri = args.mongo_uri
 
     def yaml_to_mongo(self, yml):
         """
@@ -58,19 +59,17 @@ class Trial:
         else:
             add_trial(yml, self.db)
 
-    @staticmethod
-    def bson_to_mongo(bson):
+    def bson_to_mongo(self, bson):
         """
         If you specify the path to a directory, all files with extension BSON will be added to MongoDB.
         If you specify the path to a specific BSON file, it will add that file to MongoDB.
 
         :param bson: Path to BSON file.
         """
-        cmd = process_cmd('mongorestore', global_mongo_uri, bson)
+        cmd = process_cmd('mongorestore', self.mongo_uri, bson)
         subprocess.call(cmd.split(' '))
 
-    @staticmethod
-    def json_to_mongo(json):
+    def json_to_mongo(self, json):
         """
         If you specify the path to a directory, all files with extension JSON will be added to MongoDB.
         If you specify the path to a specific JSON file, it will add that file to MongoDB.
@@ -81,23 +80,23 @@ class Trial:
             'is_upsert': True,
             'fields': ['nct_id']
         }
-        cmd = process_cmd('mongoimport', global_mongo_uri, json, collection='trial', upsert=upsert)
+        cmd = process_cmd('mongoimport', self.mongo_uri, json, collection='trial', upsert=upsert)
         subprocess.call(cmd.split(' '))
 
 
 class Patient:
 
-    def __init__(self, db):
+    def __init__(self, db, args):
 
         self.db = db
         self.load_dict = {
             'csv': self.load_csv,
             'pkl': self.load_pkl,
-            'bson': self.load_bson,
-            'json': self.load_json
+            'bson': self.load_bson
         }
         self.clinical_df = None
         self.genomic_df = None
+        self.mongo_uri = args.mongo_uri
 
     def load_csv(self, clinical, genomic):
         """Load CSV file into a Pandas dataframe"""
@@ -109,48 +108,13 @@ class Patient:
         self.clinical_df = pd.read_pickle(clinical)
         self.genomic_df = pd.read_pickle(genomic)
 
-    @staticmethod
-    def load_bson(clinical, genomic):
+    def load_bson(self, clinical, genomic):
         """Load bson file into MongoDB"""
-        cmd1 = process_cmd('mongorestore', global_mongo_uri, clinical)
-        cmd2 = process_cmd('mongorestore', global_mongo_uri, genomic)
+        cmd1 = process_cmd('mongorestore', self.mongo_uri, clinical)
+        cmd2 = process_cmd('mongorestore', self.mongo_uri, genomic)
         subprocess.call(cmd1.split(' '))
         subprocess.call(cmd2.split(' '))
         return True
-
-    def load_json(self, clinical, genomic):
-        """
-        If you specify the path to a directory, all files with extension JSON will be added to MongoDB.
-        If you specify the path to a specific JSON file, it will add that file to MongoDB.
-        :param json: Path to JSON file.
-        Note: For the empty fields in genomic data, their values should be null rather than "".
-              For the false fields in genomic data, their values should be false rather than "false".
-              For the date fields in clinical data, the type of their values should be date object rather than string.
-        """
-        delete_empty_fields(clinical)
-        delete_empty_fields(genomic)
-
-        cmd1 = process_cmd('mongoimport', global_mongo_uri, clinical, collection='clinical', is_json_array=True)
-        cmd2 = process_cmd('mongoimport', global_mongo_uri, genomic, collection='genomic', is_json_array=True)
-        subprocess.call(cmd1.split(' '))
-        subprocess.call(cmd2.split(' '))
-
-        # convert string to date object
-        for clinical_item in list(self.db.clinical.find()):
-            cols = list()
-            keys = clinical_item.keys()
-            if 'BIRTH_DATE' in keys:
-                cols.append('BIRTH_DATE')
-            if 'REPORT_DATE' in keys:
-                cols.append('REPORT_DATE')
-            for col in cols:
-                if type(clinical_item[col]) is not dt.datetime:
-                    clinical_item[col] = dt.datetime.strptime(str(clinical_item[col]), '%Y-%m-%d')
-                    clinical_item[col] = dt.datetime.strptime(str(clinical_item[col]), '%Y-%m-%d %X')
-                    self.db.clinical.update({'_id':clinical_item['_id']}, {"$set": {col: clinical_item[col]}}, upsert=False)
-
-        return True
-
 
 def load(args):
     """
@@ -193,10 +157,9 @@ def load(args):
     """
 
     db = get_db(args.mongo_uri)
-    global global_mongo_uri
-    global_mongo_uri= args.mongo_uri
-    t = Trial(db)
-    p = Patient(db)
+    t = Trial(db, args)
+    p = Patient(db, args)
+    settings = {}
 
     # Add trials to mongo
     if args.trials:
@@ -205,10 +168,26 @@ def load(args):
 
     # Add patient data to mongo
     if args.clinical and args.genomic:
-        logging.info('Reading data into pandas...')
-        is_bson_or_json = p.load_dict[args.patient_format](args.clinical, args.genomic)
+        if args.drop:
+            if 'mlab' in args.mongo_uri:
+                settings = {
+                    'uri': args.mongo_uri
+                }
+            else:
+                settings = {
+                    'host': 'localhost:27017',
+                    'dbname': 'matchminer'
+                }
+            # Dum collections before drop them
+            dump_collection('./backup', settings, 'clinical')
+            dump_collection('./backup', settings, 'genomic')
+            db.clinical.drop()
+            db.genomic.drop()
 
-        if not is_bson_or_json:
+        logging.info('Reading data into pandas...')
+        is_bson = p.load_dict[args.patient_format](args.clinical, args.genomic)
+
+        if not is_bson:
 
             # reformatting
             for col in ['BIRTH_DATE', 'REPORT_DATE']:
@@ -256,9 +235,17 @@ def load(args):
             logging.info('Adding genomic data to mongo...')
             db.genomic.insert(genomic_json)
 
-        # Create index
-        logging.info('Creating index...')
-        db.genomic.create_index([("TRUE_HUGO_SYMBOL", ASCENDING), ("WILDTYPE", ASCENDING)])
+        all_collection_names = db.collection_names()
+        if 'genomic' in all_collection_names:
+            # Create index
+            logging.info('Creating index...')
+            db.genomic.create_index([("TRUE_HUGO_SYMBOL", ASCENDING), ("WILDTYPE", ASCENDING)])
+
+        # Restore collections once load data failed.
+        if 'clinical' not in all_collection_names:
+            restore_collection('./backup', settings, 'clinical')
+        if 'genomic' not in all_collection_names:
+            restore_collection('./backup', settings, 'genomic')
 
     elif args.clinical and not args.genomic or args.genomic and not args.clinical:
         logging.error('If loading patient information, please provide both clinical and genomic data.')
@@ -355,6 +342,7 @@ if __name__ == '__main__':
     param_trial_format_help = 'File format of input trial data. Default is YML.'
     param_patient_format_help = 'File format of input patient data (both clinical and genomic files). Default is CSV.'
     param_match_method_help = 'Match method name. The default is oncokb and uses oncokb_match().'
+    param_drop_help = 'Drop existing collections when load new data.'
 
     # mode parser.
     main_p = argparse.ArgumentParser()
@@ -366,6 +354,7 @@ if __name__ == '__main__':
     subp_p.add_argument('-c', dest='clinical', help=param_clinical_help)
     subp_p.add_argument('-g', dest='genomic', help=param_genomic_help)
     subp_p.add_argument('--mongo-uri', dest='mongo_uri', required=False, default=None, help=param_mongo_uri_help)
+    subp_p.add_argument('--drop', dest='drop', required=False, action="store_true", help=param_drop_help)
     subp_p.add_argument('--trial-format',
                         dest='trial_format',
                         default='yml',
@@ -376,7 +365,7 @@ if __name__ == '__main__':
                         dest='patient_format',
                         default='csv',
                         action='store',
-                        choices=['csv', 'pkl', 'bson', 'json'],
+                        choices=['csv', 'pkl', 'bson'],
                         help=param_patient_format_help)
     subp_p.set_defaults(func=load)
 

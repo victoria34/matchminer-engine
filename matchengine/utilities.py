@@ -7,6 +7,7 @@ import yaml
 import json
 import logging
 import requests
+import subprocess
 import pandas as pd
 import datetime as dt
 from pymongo import MongoClient
@@ -747,6 +748,30 @@ def process_cmd(type, uri, file, collection = None, upsert = None, is_json_array
         if is_json_array:
             cmd += ' --jsonArray'
     return cmd
+
+def dump_collection(out_dir, settings, collection):
+    # create the dump commands.
+    if 'uri' in settings and 'mlab' in settings['uri']:
+        user, password, address, dbname = process_mlab_uri(settings['uri'])
+        cmd = 'mongodump -h %s -d %s -u %s -p %s -c %s -o %s' % (address, dbname, user, password, collection, out_dir)
+    else:
+        cmd = 'mongodump --host %s --db %s --collection %s --out %s' % \
+                  (settings['host'], settings['dbname'], collection, out_dir)
+    # execute them.
+    subprocess.call(cmd.split(" "))
+
+def restore_collection(in_dir, settings, collection):
+    # create restore commands.
+    if 'uri' in settings and 'mlab' in settings['uri']:
+        user, password, address, dbname = process_mlab_uri(settings['uri'])
+        cmd_restore = 'mongorestore -h %s -d %s -u %s -p %s -c %s %s' % \
+                      (address, dbname, user, password, collection, in_dir + '/' + dbname + '/' + collection + '.bson')
+    else:
+        cmd_restore = 'mongorestore --host %s --db %s --drop %s/%s/%s.bson' % \
+                  (settings['host'], settings['dbname'], in_dir, settings['dbname'], collection)
+    logging.info(cmd_restore)
+    # execute it.
+    subprocess.call(cmd_restore.split(" "))
 
 def process_mlab_uri(uri):
     user_pass = ((uri.split('//', 1)[-1]).split('@', 1)[0]).split(':', 1)
