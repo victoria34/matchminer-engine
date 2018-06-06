@@ -148,13 +148,13 @@ def samples_from_mrns(db, mrns):
     """Returns a dictionary mapping each MRN to all of its associated SAMPLE_IDs"""
 
     clinical = list(db.clinical.find(
-        {'DFCI_MRN': {'$in': mrns}},
-        {'DFCI_MRN': 1, 'SAMPLE_ID': 1}
+        {'MRN': {'$in': mrns}},
+        {'MRN': 1, 'SAMPLE_ID': 1}
     ))
 
     mrn_map = {}
     for c in clinical:
-        mrn_map[c['SAMPLE_ID']] = c['DFCI_MRN']
+        mrn_map[c['SAMPLE_ID']] = c['MRN']
 
     return mrn_map
 
