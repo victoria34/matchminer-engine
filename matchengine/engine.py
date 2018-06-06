@@ -509,7 +509,7 @@ class MatchEngine(object):
         """
 
         # all MRNs and trials in the database
-        mrns = self.db.clinical.distinct('DFCI_MRN')
+        mrns = self.db.clinical.distinct('MRN')
         proj = {'protocol_no': 1, 'nct_id': 1, 'treatment_list': 1, '_summary': 1}
         all_trials = list(self.db.trial.find({}, proj))
 
