@@ -359,28 +359,12 @@ class MatchEngine(object):
 
                 node['matched_sample_ids'] = matched_sample_ids
                 node['matched_genomic_info'] = matched_genomic_info
-                has_genomic_nodes = check_for_genomic_node(g, node_id=node_id)
 
-                if has_genomic_nodes:
-                    for match in node['matched_genomic_info']:
-                        if match['sample_id'] not in tree_genomic:
-                            tree_genomic[match['sample_id']] = [match]
-                        else:
-                            tree_genomic[match['sample_id']].append(match)
-                else:
-                    for sample_id in node['matched_sample_ids']:
-                        if sample_id not in tree_genomic:
-                            tree_genomic[sample_id] = [{
-                                'clinical_only': True,
-                                'genomic_alteration': 'None',
-                                'sample_id': sample_id
-                            }]
-                        else:
-                            tree_genomic[sample_id].append({
-                                'clinical_only': True,
-                                'genomic_alteration': 'None',
-                                'sample_id': sample_id
-                            })
+                for match in node['matched_genomic_info']:
+                    if match['sample_id'] not in tree_genomic:
+                        tree_genomic[match['sample_id']] = [match]
+                    else:
+                        tree_genomic[match['sample_id']].append(match)
 
             # else apply logic based on and/or
             else:
