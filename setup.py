@@ -2,7 +2,7 @@
 
 from setuptools import setup
 setup(name='matchengine',
-      version='0.1.1',
+      version='0.1.2',
       description="clinical trial matching algorithm",
       author="Zachary Zwiesler",
       author_email="zacharyt_zwiesler@dfci.harvard.edu",
