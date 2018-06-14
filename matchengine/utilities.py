@@ -501,100 +501,6 @@ def get_coordinating_center(trial):
     else:
         return trial['_summary']['coordinating_center']
 
-def check_for_genomic_node(g, node_id=1):
-    """
-    Recursively iterates down a networkx graph containing a trial's
-    match information, checking for genomic node types.
-
-    A node is clinical only if its parent is an "or" and that parents' non-self children are not
-    clinical nodes. E.g.
-
-    (1)
-           |--- Clinical
-    and ---|
-           |     |------ Genomic        --> NOT clinical only
-           |--- and
-                 |------ Genomic
-
-    (2)
-           |--- Clinical
-    and ---|
-           |     |------ Genomic        --> NOT clinical only
-           |---- or
-                 |------ Genomic
-
-    (3)
-                 |--- Clinical
-           |---- or
-           |     |--- Clinical
-    and ---|                            --> NOT clinical only
-           |     |------ Genomic
-           |--- and
-                 |------ Genomic
-
-    (4)
-           |--- Clinical
-    or ----|
-           |     |------ Genomic        --> YES clinical only
-           |--- and
-                 |------ Genomic
-
-    More complex versions of this pattern prevent assuming a root-level "or" with a clinical child as being
-    a clinical only node. This root-level or could encompass subtrees with both genomically dependent and indepedent
-    clinical clauses.
-
-    :param g: Networkx graph
-    :param node_id: ID of the current node. Default starts with the base node.
-    :return: True or False: True means a genomic node exists in the graph; False means none exists.
-    """
-
-    current_node = g.node[node_id]
-
-    # assess current node
-    if current_node['type'] == 'genomic':
-        return True
-
-    # assess children of current node
-    children = g.successors(node_id)
-    for child_node_id in children:
-        child_node = g.node[child_node_id]
-        if child_node['type'] == 'genomic':
-            return True
-
-    # assess current node in the context of its parents' children
-    parents = g.predecessors(node_id)
-    parent_nodes = [g.node[i] for i in parents]
-    parents_children = []
-    for parent_node_id in parents:
-        parents_children.extend(g.successors(parent_node_id))
-
-    # assess sibling node
-    for sibling_id in parents_children:
-        sibling_node = g.node[sibling_id]
-        if sibling_node['type'] == 'genomic':
-            return True
-
-    for parent_node_id, parent_node in zip(parents, parent_nodes):
-
-        if current_node['type'] == 'clinical' and parent_node['type'] == 'or':
-            this_parents_children = [i for i in g.successors(parent_node_id) if i != node_id]
-            for this_parents_child in this_parents_children:
-                this_parents_child_node = g.node[this_parents_child]
-                if this_parents_child_node['type'] != 'clinical':
-                    return False
-        else:
-            child_node_ids = []
-            for parents_child_node_id in parents_children:
-                if parents_child_node_id != node_id:
-                    child_node_ids.extend(g.successors(parents_child_node_id))
-
-            for child_node_id in child_node_ids:
-                has_genomic_nodes = check_for_genomic_node(g, node_id=child_node_id)
-                if has_genomic_nodes:
-                    return has_genomic_nodes
-
-    return False
-
 def oncokb_api_match(db,collection_name):
     """
     Get all trial matched results from OncoKB API
@@ -745,33 +651,10 @@ def process_cmd(type, uri, file, collection = None, upsert = None, is_json_array
         if upsert['is_upsert']:
             upsert_fields = ', '.join(str(x) for x in upsert['fields'])
             cmd += ' --upsert --upsertFields %s' % upsert_fields
-        if is_json_array:
-            cmd += ' --jsonArray'
+    if is_json_array:
+        cmd += ' --jsonArray'
+
     return cmd
-
-def dump_collection(out_dir, settings, collection):
-    # create the dump commands.
-    if 'uri' in settings and 'mlab' in settings['uri']:
-        user, password, address, dbname = process_mlab_uri(settings['uri'])
-        cmd = 'mongodump -h %s -d %s -u %s -p %s -c %s -o %s' % (address, dbname, user, password, collection, out_dir)
-    else:
-        cmd = 'mongodump --host %s --db %s --collection %s --out %s' % \
-                  (settings['host'], settings['dbname'], collection, out_dir)
-    # execute them.
-    subprocess.call(cmd.split(" "))
-
-def restore_collection(in_dir, settings, collection):
-    # create restore commands.
-    if 'uri' in settings and 'mlab' in settings['uri']:
-        user, password, address, dbname = process_mlab_uri(settings['uri'])
-        cmd_restore = 'mongorestore -h %s -d %s -u %s -p %s -c %s %s' % \
-                      (address, dbname, user, password, collection, in_dir + '/' + dbname + '/' + collection + '.bson')
-    else:
-        cmd_restore = 'mongorestore --host %s --db %s --drop %s/%s/%s.bson' % \
-                  (settings['host'], settings['dbname'], in_dir, settings['dbname'], collection)
-    logging.info(cmd_restore)
-    # execute it.
-    subprocess.call(cmd_restore.split(" "))
 
 def process_mlab_uri(uri):
     user_pass = ((uri.split('//', 1)[-1]).split('@', 1)[0]).split(':', 1)
