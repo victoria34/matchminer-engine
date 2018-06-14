@@ -273,8 +273,7 @@ class MatchEngine(object):
                     'CLINICAL_ID': 1,
                     'MMR_STATUS': 1,
                     'ACTIONABILITY': 1,
-                    '_id': 1,
-                    'UNIQUE_GENOMIC_ID': 1
+                    '_id': 1
                 }
 
                 # record pathologist's chromosomal rearrangement comment for downstream manual analysis
@@ -359,8 +358,7 @@ class MatchEngine(object):
             'TRUE_VARIANT_CLASSIFICATION':1,
             'VARIANT_CATEGORY':1,
             'ANNOTATED_VARIANT': 1,
-            '_id': 1,
-            'UNIQUE_GENOMIC_ID': 1
+            '_id': 1
         }
 
         # iterate 'oncokb_matched_results' list
@@ -556,11 +554,11 @@ class MatchEngine(object):
             c = build_cquery(c, norm_field, txt)
 
         # stolen Jimbo's code for adding all the oncotree nodes
-        if 'ONCOTREE_PRIMARY_DIAGNOSIS_NAME' in c and c['ONCOTREE_PRIMARY_DIAGNOSIS_NAME']['$eq']:
+        if 'ONCOTREE_PRIMARY_DIAGNOSIS_NAME' in c:
             c['ONCOTREE_PRIMARY_DIAGNOSIS_NAME'] = self._search_oncotree_diagnosis(onco_tree, c)
 
         # translate yaml age restrictions into proper mongo query dates
-        if 'BIRTH_DATE' in c and c['BIRTH_DATE']['$eq']:
+        if 'BIRTH_DATE' in c:
             c['BIRTH_DATE'] = search_birth_date(c)
 
         return c
@@ -717,8 +715,7 @@ class MatchEngine(object):
                     'VITAL_STATUS': 1,
                     'FIRST_LAST': 1,
                     'GENDER': 1,
-                    '_id': 1,
-                    'UNIQUE_CLINICAL_ID': 1
+                    '_id': 1
                 }
             clinical = list(self.db.clinical.find({'SAMPLE_ID': {'$in': list(sample_ids)}}, cproj))
 

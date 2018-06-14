@@ -13,7 +13,7 @@ import datetime as dt
 from pymongo import ASCENDING
 
 from matchengine.engine import MatchEngine
-from matchengine.utilities import get_db, process_cmd, set_match_method, dump_collection, restore_collection
+from matchengine.utilities import get_db, process_cmd, set_match_method
 
 MONGO_URI = ""
 MONGO_DBNAME = "matchminer"
@@ -345,7 +345,6 @@ if __name__ == '__main__':
     param_trial_format_help = 'File format of input trial data. Default is YML.'
     param_patient_format_help = 'File format of input patient data (both clinical and genomic files). Default is CSV.'
     param_match_method_help = 'Match method name. The default is oncokb and uses oncokb_match().'
-    param_drop_help = 'Drop existing collections when load new data.'
 
     # mode parser.
     main_p = argparse.ArgumentParser()
@@ -357,7 +356,6 @@ if __name__ == '__main__':
     subp_p.add_argument('-c', dest='clinical', help=param_clinical_help)
     subp_p.add_argument('-g', dest='genomic', help=param_genomic_help)
     subp_p.add_argument('--mongo-uri', dest='mongo_uri', required=False, default=None, help=param_mongo_uri_help)
-    subp_p.add_argument('--drop', dest='drop', required=False, action="store_true", help=param_drop_help)
     subp_p.add_argument('--trial-format',
                         dest='trial_format',
                         default='yml',
