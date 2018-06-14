@@ -816,14 +816,8 @@ class MatchEngine(object):
                 nodes_txt = [onco_tree.node[n]['text'] for n in nodes]
 
                 if key == '$eq':
-                    if nodes_txt:
-                        key = '$in'
-                        tmpc['ONCOTREE_PRIMARY_DIAGNOSIS_NAME'][key] = nodes_txt
-                    else:
-                        # We are using both MainType and SubType now but oncotreenx only use SubType.
-                        # TODO: We should remove this part after curation platform are ready for only using SubType.
-                        tmpc['ONCOTREE_PRIMARY_DIAGNOSIS_NAME'][key] = c['ONCOTREE_PRIMARY_DIAGNOSIS_NAME'][key]
-                        return tmpc['ONCOTREE_PRIMARY_DIAGNOSIS_NAME']
+                    key = '$in'
+                    tmpc['ONCOTREE_PRIMARY_DIAGNOSIS_NAME'][key] = nodes_txt
                 elif key == '$ne':
                     key = '$nin'
                     tmpc['ONCOTREE_PRIMARY_DIAGNOSIS_NAME'][key] = nodes_txt
