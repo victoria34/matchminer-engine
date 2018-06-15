@@ -243,8 +243,6 @@ class MatchEngine(object):
         results = list()
         # prepare genomic criteria
         g, neg, sv = self.prepare_genomic_criteria(conditions)
-        if 'no_hugo_symbol' in conditions and conditions['no_hugo_symbol']:
-            neg = True
 
         # execute match
         if len(g.keys()) == 0:
