@@ -544,12 +544,14 @@ def oncokb_api_match(db,collection_name):
     genomic_collection = db[collection_name]
     genomic_results = list(genomic_collection.find({},genomic_proj))
     for genomic in genomic_results:
-        query = {
-            "id": genomic['SAMPLE_ID'],
-            "hugoSymbol": genomic['TRUE_HUGO_SYMBOL'],
-            "alteration": genomic['TRUE_PROTEIN_CHANGE']
-        }
-        queries.append(query)
+        if 'TRUE_HUGO_SYMBOL' in genomic and genomic['TRUE_HUGO_SYMBOL'] and \
+            'TRUE_PROTEIN_CHANGE' in genomic and genomic['TRUE_PROTEIN_CHANGE']:
+            query = {
+                "id": genomic['SAMPLE_ID'],
+                "hugoSymbol": genomic['TRUE_HUGO_SYMBOL'],
+                "alteration": genomic['TRUE_PROTEIN_CHANGE']
+            }
+            queries.append(query)
 
     # get genomic node info from collection trial
     steps = list(db.trial.find({'treatment_list.step':{'$exists': 'true', '$ne': []}}, {'_id': 0}));
