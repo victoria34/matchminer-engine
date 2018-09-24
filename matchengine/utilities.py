@@ -7,7 +7,6 @@ import yaml
 import json
 import logging
 import requests
-import subprocess
 import pandas as pd
 import datetime as dt
 from pymongo import MongoClient
@@ -163,7 +162,7 @@ def samples_from_mrns(db, mrns):
 
 def search_birth_date(c):
     """Converts query to filter by birth date based on the given age"""
-    txt = c['BIRTH_DATE']['$eq']
+    txt = c['BIRTH_DATE']['$eq'].lstrip()
 
     # translate to mongo query
     if txt.startswith('>='):
@@ -303,7 +302,7 @@ def format_genomic_alteration(g, query):
         alteration += ' Structural Variation'
 
     # add mutational signtature
-    elif sv in g and g[sv] == 'SIGNATURE' and mmr in g and g[mmr] is not None:
+    elif sv in g and g[sv] == 'SIGNATURE' and mmr in g and g[mmr] is not None and g[mmr] in mmr_map_rev:
         alteration += mmr_map_rev[g[mmr]]
 
     return alteration, is_variant

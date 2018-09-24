@@ -435,22 +435,29 @@ class MatchEngine(object):
 
             # Matching trials only by "annotated_variant" is not be supported currently.
             if 'hugo_symbol' in item and item['hugo_symbol'] and 'annotated_variant' in item and item['annotated_variant']:
-                oncokb_matched_sample_ids, oncokb_matched_genomic_info = self.oncokb_match(item)
+                hugo_symbol = item['hugo_symbol'].lstrip()
+                annotated_variant = item['annotated_variant'].lstrip()
+                if hugo_symbol.startswith('!'):
+                    hugo_symbol = hugo_symbol[1:]
+                if annotated_variant.startswith('!'):
+                    annotated_variant = annotated_variant[1:]
+                if hugo_symbol != 'undefined' and annotated_variant != 'undefined':
+                    oncokb_matched_sample_ids, oncokb_matched_genomic_info = self.oncokb_match(item)
 
-                # check if general_match() has been run
-                if run_general_match:
-                    matched_sample_ids.intersection(oncokb_matched_sample_ids)
-                    if len(matched_sample_ids) > 0:
-                        temp_matched_genomic_info = list()
-                        for genomic_info in oncokb_matched_genomic_info:
-                            if genomic_info['sample_id'] in matched_sample_ids:
-                                temp_matched_genomic_info.append(genomic_info)
-                        matched_genomic_info = temp_matched_genomic_info
+                    # check if general_match() has been run
+                    if run_general_match:
+                        matched_sample_ids.intersection(oncokb_matched_sample_ids)
+                        if len(matched_sample_ids) > 0:
+                            temp_matched_genomic_info = list()
+                            for genomic_info in oncokb_matched_genomic_info:
+                                if genomic_info['sample_id'] in matched_sample_ids:
+                                    temp_matched_genomic_info.append(genomic_info)
+                            matched_genomic_info = temp_matched_genomic_info
+                        else:
+                            matched_genomic_info = list()
                     else:
-                        matched_genomic_info = list()
-                else:
-                    matched_sample_ids = oncokb_matched_sample_ids
-                    matched_genomic_info = oncokb_matched_genomic_info
+                        matched_sample_ids = oncokb_matched_sample_ids
+                        matched_genomic_info = oncokb_matched_genomic_info
 
         # execute query against clinical table
         elif node['type'] == 'clinical':
@@ -642,7 +649,7 @@ class MatchEngine(object):
 
             if 'protocol_no' not in trial:
                 trial['protocol_no'] = trial['nct_id']
-                logging.info('Matching trial %s' % trial['protocol_no'])
+            logging.info('Matching trial %s' % trial['protocol_no'])
 
             # If the trial is not open to accrual, all matches to all match trees in this trial will be marked closed
             trial_status = 'open'
