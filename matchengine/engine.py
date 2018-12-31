@@ -785,7 +785,7 @@ class MatchEngine(object):
                 diagnoses = [diagnoses]
 
             for txt in diagnoses:
-                if txt.endswith("_LIQUID_") or txt.endswith("_SOLID_") or txt == 'All Solid Tumors':
+                if txt.endswith("_LIQUID_") or txt == 'All Liquid Tumors' or txt.endswith("_SOLID_") or txt == 'All Solid Tumors':
 
                     # build the nodes for liquid.
                     node1 = oncotreenx.lookup_text(onco_tree, "Lymph")
