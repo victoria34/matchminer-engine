@@ -43,14 +43,6 @@ class MatchEngine(object):
         # get the database.
         self.db = db
 
-        # get match_type to decide use which match method. The default is oncokb_match() and general_match()
-        self.match_method = get_match_method()
-        if self.match_method and self.match_method != 'oncokb':
-            # Todo: Use other match methods
-            print("Match method: %s" % self.match_method)
-        else:
-            self.oncokb_matched_result = oncokb_api_match(self.db, "genomic")
-
         # stores the complete list as easy lookup
         self.all_match = set(self.db.clinical.distinct('SAMPLE_ID'))
 
@@ -644,6 +636,7 @@ class MatchEngine(object):
         # initialize trial matches
         trial_matches = []
 
+        self.oncokb_matched_result = oncokb_api_match(self.db, "genomic")
         # for all trials check for matches on the dose, arm, and step levels and keep track of what is found
         for trial in all_trials:
 
@@ -792,7 +785,7 @@ class MatchEngine(object):
                 diagnoses = [diagnoses]
 
             for txt in diagnoses:
-                if txt.endswith("_LIQUID_") or txt.endswith("_SOLID_"):
+                if txt.endswith("_LIQUID_") or txt.endswith("_SOLID_") or txt == 'All Solid Tumors':
 
                     # build the nodes for liquid.
                     node1 = oncotreenx.lookup_text(onco_tree, "Lymph")
@@ -803,7 +796,7 @@ class MatchEngine(object):
                     nodes = list(set(nodes1).union(set(nodes2)))
 
                     # if its really solid take the inverse.
-                    if txt == "_SOLID_":
+                    if txt == "_SOLID_" or txt == 'All Solid Tumors':
                         all_nodes = set(list(onco_tree.nodes()))
                         tmp_nodes = all_nodes - set(nodes)
                         nodes = list(tmp_nodes)

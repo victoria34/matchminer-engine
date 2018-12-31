@@ -80,7 +80,7 @@ class Trial:
             'is_upsert': True,
             'fields': ['nct_id']
         }
-        cmd = process_cmd('mongoimport', self.mongo_uri, json, collection='trial', upsert=upsert)
+        cmd = process_cmd('mongoimport', self.mongo_uri, json, collection='trial', upsert=upsert, is_json_array=False)
         subprocess.call(cmd.split(' '))
 
 class Patient:
