@@ -416,6 +416,11 @@ class MatchEngine(object):
             general_map_keys = ["variant_category", "protein_change", "wildcard_protein_change",
                                 "variant_classification", "exon", "cnv_call", "wildtype", "mmr_status", "ms_status"]
 
+            # If genomic['annotated_variant'] = 'wildtype', run general_match() and skip oncokb_match().
+            if 'annotated_variant' in item and item['annotated_variant'].lower().strip() == 'wildtype':
+                item['wildtype'] = 'true'
+                del item['annotated_variant']
+
             for key in item.keys():
                 # i.e., {'type': 'genomic', 'value': {'HUGO_SYMBOL': '!BRAF'}}
                 if len(item.keys()) == 1:
