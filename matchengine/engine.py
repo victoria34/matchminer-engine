@@ -5,6 +5,7 @@ import networkx as nx
 import gc
 import logging
 import copy
+import json
 
 from matchengine import schema
 from matchengine.validation import ConsentValidatorCerberus
@@ -517,6 +518,21 @@ class MatchEngine(object):
 
         final_sample_ids = g.node[1]['matched_sample_ids']
         final_genomic_infos = [tree_genomic[i] for i in final_sample_ids]
+
+        # Remove duplicate alteration
+        for sample in final_genomic_infos:
+            sample_set = set()
+            pre_size = len(sample_set)
+            for alteration in sample:
+                alteration_copy = copy.deepcopy(alteration)
+                alteration_copy['genomic_id'] = str(alteration_copy['genomic_id'])
+                alteration_string = json.dumps(alteration_copy)
+                sample_set.add(alteration_string)
+                if pre_size == len(sample_set):
+                    # The string just added is a duplicate. Remove it from sample.
+                    sample.remove(alteration)
+                else:
+                    pre_size += 1
 
         return final_sample_ids, final_genomic_infos
 
