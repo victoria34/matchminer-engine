@@ -530,7 +530,8 @@ class MatchEngine(object):
             pre_size = len(sample_set)
             for alteration in sample:
                 alteration_copy = copy.deepcopy(alteration)
-                alteration_copy['genomic_id'] = str(alteration_copy['genomic_id'])
+                if 'genomic_id' in alteration_copy:
+                    alteration_copy['genomic_id'] = str(alteration_copy['genomic_id'])
                 alteration_string = json.dumps(alteration_copy)
                 sample_set.add(alteration_string)
                 if pre_size == len(sample_set):
