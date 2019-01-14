@@ -2,6 +2,7 @@
 
 from cerberus1 import schema_registry
 import networkx as nx
+import gc
 import logging
 
 from matchengine import schema
@@ -531,14 +532,20 @@ class MatchEngine(object):
                         if 'match' in dose:
                             trial_matches = self._assess_match(mrn_map, trial_matches, trial, dose, 'dose', trial_status)
 
-        logging.info('Sorting trial matches')
-        trial_matches = add_sort_order(trial_matches)
+        trial_match_df = pd.DataFrame.from_dict(trial_matches)
+
+        # force garbage collector to remove unused object after conversion to df
+        del trial_matches
+        gc.collect()
+
+        # sort
+        logging.info('Sorting trial matches.')
+        trial_matches_df = add_sort_order(trial_match_df)
+        logging.info('Number of trial matches: %s' % str(trial_match_df.shape[0]))
 
         # add to db
         logging.info('Adding trial matches to database')
-        add_matches(trial_matches, self.db)
-
-        return trial_matches
+        add_matches(trial_matches_df, self.db)
 
     def _assess_match(self, mrn_map, trial_matches, trial, trial_segment, match_segment, trial_status):
         """

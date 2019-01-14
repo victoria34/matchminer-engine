@@ -204,7 +204,7 @@ def get_months(abs_age, today):
 
     # month
     month = split_age[1]
-    month = int((float(month) * 12) / (10 ** len(month)))   # e.g. convert 5/10 to x/12
+    month = int((float(month) * 12) / (10 ** len(month)))  # e.g. convert 5/10 to x/12
 
     # year
     if split_age[0] == '':
@@ -387,9 +387,10 @@ def add_matches(trial_matches_df, db):
             lambda x: dt.datetime.strftime(x, '%Y-%m-%d %X') if pd.notnull(x) else x)
 
     if len(trial_matches_df.index) > 0:
-        records = json.loads(trial_matches_df.T.to_json()).values()
         db.trial_match.drop()
-        db.trial_match.insert_many(records)
+        for i in range(0, trial_matches_df.shape[0], 1000):
+            records = json.loads(trial_matches_df[i:i + 1000].T.to_json()).values()
+            db.trial_match.insert_many(records)
 
 
 def get_db(uri):

@@ -6,7 +6,7 @@ import logging
 logging.basicConfig(level=logging.DEBUG, format='[%(levelname)s] %(message)s', )
 
 
-def add_sort_order(trial_matches):
+def add_sort_order(trial_match_df):
     """
     Aggregate all the trial matches by MRN and provide a sort order using the following logic:
     (1) First sort by tier
@@ -20,8 +20,6 @@ def add_sort_order(trial_matches):
         (1) sort_order: Order in which to display the matches
         (2) freq: Frequency with which this trial match appears throughout the entire patient cohort
     """
-
-    trial_match_df = pd.DataFrame.from_dict(trial_matches)
 
     if len(trial_match_df.index) == 0:
         return trial_match_df
