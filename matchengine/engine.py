@@ -662,9 +662,10 @@ class MatchEngine(object):
         # for all trials check for matches on the dose, arm, and step levels and keep track of what is found
         for trial in all_trials:
 
-            if 'protocol_no' not in trial:
-                trial['protocol_no'] = trial['nct_id']
-            logging.info('Matching trial %s' % trial['protocol_no'])
+            if 'protocol_no' in trial:
+                logging.info('Matching trial %s' % trial['protocol_no'])
+            else:
+                logging.info('Matching trial %s' % trial['nct_id'])
 
             # If the trial is not open to accrual, all matches to all match trees in this trial will be marked closed
             trial_status = 'open'
