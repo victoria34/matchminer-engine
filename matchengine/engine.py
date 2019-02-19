@@ -403,6 +403,7 @@ class MatchEngine(object):
             matched_genomic_info: genomic information regarding each match
         """
 
+        matched_clinical_info = list()
         matched_genomic_info = list()
         matched_sample_ids = set()
         run_general_match = False
@@ -470,13 +471,21 @@ class MatchEngine(object):
                 matched_sample_ids = list()
             else:
                 matched_sample_ids = set(self.db.clinical.find(c).distinct('SAMPLE_ID'))
+                if len(matched_sample_ids) > 0:
+                    # collect clinical matching criteria
+                    for sample_id in matched_sample_ids:
+                        clinical_info = {}
+                        for key in item:
+                            clinical_info['trial_' + key.encode("utf-8")] = item[key]
+                        clinical_info['sample_id'] = sample_id
+                        matched_clinical_info.append(clinical_info)
 
         else:
             logging.info("bad match tree")
             return
 
         # return a list of sample ids and match information
-        return matched_sample_ids, matched_genomic_info
+        return matched_sample_ids, matched_genomic_info, matched_clinical_info
 
     def traverse_match_tree(self, g):
         """ Finds matches for a given match tree
@@ -486,6 +495,7 @@ class MatchEngine(object):
         """
 
         tree_genomic = {}
+        final_clinical_infos = list()
         for node_id in list(nx.dfs_postorder_nodes(g, source=1)):
 
             # get node and its child
@@ -494,7 +504,8 @@ class MatchEngine(object):
 
             # if leaf node then execute query
             if len(successors) == 0:
-                matched_sample_ids, matched_genomic_info = self.run_query(node)
+                matched_sample_ids, matched_genomic_info, matched_clinical_info = self.run_query(node)
+                final_clinical_infos += matched_clinical_info
 
                 node['matched_sample_ids'] = matched_sample_ids
                 node['matched_genomic_info'] = matched_genomic_info
@@ -539,6 +550,10 @@ class MatchEngine(object):
                     sample.remove(alteration)
                 else:
                     pre_size += 1
+                # Merge clinical criteria to genomic criteria
+                for clinical_info in final_clinical_infos:
+                    if alteration['sample_id'] == clinical_info['sample_id']:
+                        alteration.update(clinical_info)
 
         return final_sample_ids, final_genomic_infos
 
@@ -662,7 +677,7 @@ class MatchEngine(object):
         # for all trials check for matches on the dose, arm, and step levels and keep track of what is found
         for trial in all_trials:
 
-            if 'protocol_no' in trial:
+            if 'protocol_no' in trial and trial['protocol_no']:
                 logging.info('Matching trial %s' % trial['protocol_no'])
             else:
                 logging.info('Matching trial %s' % trial['nct_id'])
