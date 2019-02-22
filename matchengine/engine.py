@@ -472,6 +472,7 @@ class MatchEngine(object):
             else:
                 matched_sample_ids = set(self.db.clinical.find(c).distinct('SAMPLE_ID'))
                 if len(matched_sample_ids) > 0:
+                    # print(item, c)
                     # collect clinical matching criteria
                     for sample_id in matched_sample_ids:
                         clinical_info = {}
@@ -550,10 +551,11 @@ class MatchEngine(object):
                     sample.remove(alteration)
                 else:
                     pre_size += 1
-                # Merge clinical criteria to genomic criteria
-                for clinical_info in final_clinical_infos:
-                    if alteration['sample_id'] == clinical_info['sample_id']:
-                        alteration.update(clinical_info)
+                    # Merge clinical criteria to genomic criteria
+                    for clinical_info in final_clinical_infos:
+                        if alteration['sample_id'] == clinical_info['sample_id']:
+                            alteration.update(clinical_info)
+                            break
 
         return final_sample_ids, final_genomic_infos
 
@@ -792,6 +794,8 @@ class MatchEngine(object):
                     if 'level_suspended' in trial_segment and trial_segment['level_suspended'].lower() == 'y':
                         match['trial_accrual_status'] = 'closed'
                 elif match_segment == 'arm':
+                    if 'arm_description' in trial_segment and trial_segment['arm_description']:
+                        match['arm_description'] = str(trial_segment['arm_description'])
                     if 'arm_internal_id' in trial_segment:
                         match['internal_id'] = str(trial_segment['arm_internal_id'])
                     if 'arm_code' in trial_segment:

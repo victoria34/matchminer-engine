@@ -544,8 +544,7 @@ def oncokb_api_match(db,collection_name):
     genomic_collection = db[collection_name]
     genomic_results = list(genomic_collection.find({},genomic_proj))
     for genomic in genomic_results:
-        if 'TRUE_HUGO_SYMBOL' in genomic and genomic['TRUE_HUGO_SYMBOL'] and \
-            'TRUE_PROTEIN_CHANGE' in genomic and genomic['TRUE_PROTEIN_CHANGE']:
+        if 'TRUE_HUGO_SYMBOL' in genomic and genomic['TRUE_HUGO_SYMBOL'] and 'TRUE_PROTEIN_CHANGE' in genomic and genomic['TRUE_PROTEIN_CHANGE']:
             query = {
                 "id": genomic['SAMPLE_ID'],
                 "hugoSymbol": genomic['TRUE_HUGO_SYMBOL'],
@@ -584,13 +583,15 @@ def oncokb_api_match(db,collection_name):
             protein_change = trial_match['query']['alteration']
             for genomic_alteration in trial_match['result']:
                 if genomic_alteration['hugoSymbol'] in matched_results:
-                    if protein_change in matched_results[genomic_alteration['hugoSymbol']] and \
-                                    genomic_alteration['alteration'] not in matched_results[genomic_alteration['hugoSymbol']][protein_change]:
-                        matched_results[genomic_alteration['hugoSymbol']][protein_change].append(genomic_alteration['alteration'])
+                    if protein_change in matched_results[genomic_alteration['hugoSymbol']]:
+                        if not (genomic_alteration['alteration'] in matched_results[genomic_alteration['hugoSymbol']][protein_change]):
+                            matched_results[genomic_alteration['hugoSymbol']][protein_change].append(genomic_alteration['alteration'])
+                    else:
+                        matched_results[genomic_alteration['hugoSymbol']][protein_change] = [genomic_alteration['alteration']]
                 else:
-                    matched_results[genomic_alteration['hugoSymbol']] = {
-                        protein_change:[genomic_alteration['alteration']]
-                    }
+                    matched_results[genomic_alteration['hugoSymbol']] = {}
+                    matched_results[genomic_alteration['hugoSymbol']][protein_change] = [genomic_alteration['alteration']]
+
     return matched_results
 
 def find_genomic_node(match, node_infos):
