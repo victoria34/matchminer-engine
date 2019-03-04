@@ -366,6 +366,12 @@ class MatchEngine(object):
                     results = results + list(self.db.genomic.find(query, proj))
 
         if negative_query:
+            query = {
+                'TRUE_HUGO_SYMBOL': hugo_symbol,
+                'TRUE_PROTEIN_CHANGE': annotated_variant
+            }
+            # match trial for queried genomic data
+            results = results + list(self.db.genomic.find(query, proj))
             matched_sample_ids = self.all_match - set(x['SAMPLE_ID']for x in results)
             # add genomic alterations per sample id
             matched_genomic_info = [{
