@@ -502,7 +502,8 @@ class MatchEngine(object):
         """
 
         tree_genomic = {}
-        final_clinical_infos = list()
+        tree_clinical = {}
+        final_match_infos = list() # combination of matched genomic_info and clinical_info
         for node_id in list(nx.dfs_postorder_nodes(g, source=1)):
 
             # get node and its child
@@ -512,10 +513,10 @@ class MatchEngine(object):
             # if leaf node then execute query
             if len(successors) == 0:
                 matched_sample_ids, matched_genomic_info, matched_clinical_info = self.run_query(node)
-                final_clinical_infos += matched_clinical_info
 
                 node['matched_sample_ids'] = matched_sample_ids
                 node['matched_genomic_info'] = matched_genomic_info
+                node['matched_clinical_info'] = matched_clinical_info
 
                 for match in node['matched_genomic_info']:
                     if match['sample_id'] not in tree_genomic:
@@ -523,12 +524,19 @@ class MatchEngine(object):
                     else:
                         tree_genomic[match['sample_id']].append(match)
 
+                for match in node['matched_clinical_info']:
+                    if match['sample_id'] not in tree_clinical:
+                        tree_clinical[match['sample_id']] = [match]
+                    else:
+                        tree_clinical[match['sample_id']].append(match)
+
             # else apply logic based on and/or
             else:
 
                 node['matched_sample_ids'] = set([])
                 node['matched_sample_ids'].update(g.node[successors[0]]['matched_sample_ids'])
                 node['matched_genomic_info'] = g.node[successors[0]]['matched_genomic_info']
+                node['matched_clinical_info'] = g.node[successors[0]]['matched_clinical_info']
 
                 for i in range(1, len(successors)):
                     s_list = g.node[successors[i]]['matched_sample_ids']
@@ -541,11 +549,13 @@ class MatchEngine(object):
 
         final_sample_ids = g.node[1]['matched_sample_ids']
         final_genomic_infos = [tree_genomic[i] for i in final_sample_ids]
+        final_clinical_infos = [tree_clinical[i] for i in final_sample_ids]
 
         # Remove duplicate alteration
         for sample in final_genomic_infos:
             sample_set = set()
             pre_size = len(sample_set)
+            sample_match_info = list()
             for alteration in sample:
                 alteration_copy = copy.deepcopy(alteration)
                 if 'genomic_id' in alteration_copy:
@@ -558,12 +568,15 @@ class MatchEngine(object):
                 else:
                     pre_size += 1
                     # Merge clinical criteria to genomic criteria
-                    for clinical_info in final_clinical_infos:
-                        if alteration['sample_id'] == clinical_info['sample_id']:
-                            alteration.update(clinical_info)
-                            break
+                    for clinical_group in final_clinical_infos:
+                        for clinical_info in clinical_group:
+                            if alteration['sample_id'] == clinical_info['sample_id']:
+                                alteration_copy = copy.deepcopy(alteration)
+                                alteration_copy.update(clinical_info)
+                                sample_match_info.append(alteration_copy)
+            final_match_infos.append(sample_match_info)
 
-        return final_sample_ids, final_genomic_infos
+        return final_sample_ids, final_match_infos
 
     def prepare_clinical_criteria(self, item):
         """
