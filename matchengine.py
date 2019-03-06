@@ -267,20 +267,6 @@ def add_trial(yml, db):
         t = yaml.load(f.read())
         db.trial.insert_one(t)
 
-def delete_empty_fields(file):
-    with open(file) as json_data:
-        data = json.load(json_data)
-        for item in data:
-            cols = list(item.keys())
-            for col in cols:
-                if not item[col]:
-                    # trim whitespaces
-                    item[col] = item[col].strip()
-                    if not item[col]:
-                        del item[col]
-    with open(file, 'w') as filter_file:
-        json.dump(data, filter_file)
-
 
 def export_results(connection_string, file_format, outpath):
     """Return csv file containing the match results to the current working directory"""
