@@ -417,7 +417,7 @@ class MatchEngine(object):
         # execute query against genomic table
         if node['type'] == 'genomic':
             item = node['value']
-            item_deepcopy = copy.deepcopy(item)
+            # item_deepcopy = copy.deepcopy(item)
 
             # check if "item" can run general_match(). "hugo_symbol" is required for any match method
             general_map_keys = ["variant_category", "protein_change", "wildcard_protein_change",
@@ -428,41 +428,30 @@ class MatchEngine(object):
                 item['wildtype'] = 'true'
                 del item['annotated_variant']
 
-            for key in item.keys():
-                # i.e., {'type': 'genomic', 'value': {'HUGO_SYMBOL': '!BRAF'}}
-                if len(item.keys()) == 1:
-                    matched_sample_ids, matched_genomic_info = self.general_match(item_deepcopy)
-                # run general_match when any key appears in general_key_map and its value is not null.
-                elif key in general_map_keys and item[key] and 'hugo_symbol' in item and item['hugo_symbol']:
-                    matched_sample_ids, matched_genomic_info = self.general_match(item_deepcopy)
-                    run_general_match = True
-                    break
+            item_keys = item.keys()
+            # i.e., {'type': 'genomic', 'value': {'HUGO_SYMBOL': '!BRAF'}}
+            if len(item_keys) == 1:
+                matched_sample_ids, matched_genomic_info = self.general_match(copy.deepcopy(item))
+            # run general_match when any key appears in general_key_map and its value is not null.
+            elif not set(item_keys).isdisjoint(general_map_keys) and 'hugo_symbol' in item and item['hugo_symbol']:
+                print item_keys
+                matched_sample_ids, matched_genomic_info = self.general_match(copy.deepcopy(item))
+                run_general_match = True
 
             # Matching trials only by "annotated_variant" is not be supported currently.
-            if 'hugo_symbol' in item and item['hugo_symbol'] and 'annotated_variant' in item and item['annotated_variant']:
-                hugo_symbol = item['hugo_symbol'].lstrip()
-                annotated_variant = item['annotated_variant'].lstrip()
-                if hugo_symbol.startswith('!'):
-                    hugo_symbol = hugo_symbol[1:]
-                if annotated_variant.startswith('!'):
-                    annotated_variant = annotated_variant[1:]
-                if hugo_symbol != 'undefined' and annotated_variant != 'undefined':
-                    oncokb_matched_sample_ids, oncokb_matched_genomic_info = self.oncokb_match(item)
+            if 'hugo_symbol' in item and item['hugo_symbol'] and 'annotated_variant' in item and item['annotated_variant'] \
+            and not ('undefined' in item['hugo_symbol'] or 'undefined' in item['annotated_variant']):
+                oncokb_matched_sample_ids, oncokb_matched_genomic_info = self.oncokb_match(item)
 
-                    # check if general_match() has been run
-                    if run_general_match:
-                        matched_sample_ids.intersection(oncokb_matched_sample_ids)
-                        if len(matched_sample_ids) > 0:
-                            temp_matched_genomic_info = list()
-                            for genomic_info in oncokb_matched_genomic_info:
-                                if genomic_info['sample_id'] in matched_sample_ids:
-                                    temp_matched_genomic_info.append(genomic_info)
-                            matched_genomic_info = temp_matched_genomic_info
-                        else:
-                            matched_genomic_info = list()
-                    else:
-                        matched_sample_ids = oncokb_matched_sample_ids
-                        matched_genomic_info = oncokb_matched_genomic_info
+                # check if general_match() has been run
+                if run_general_match:
+                    matched_sample_ids.intersection(oncokb_matched_sample_ids)
+                    matched_genomic_info = list()
+                    if len(matched_sample_ids) > 0:
+                        matched_genomic_info = list(genomic_info for genomic_info in oncokb_matched_genomic_info if genomic_info['sample_id'] in matched_sample_ids )
+                else:
+                    matched_sample_ids = oncokb_matched_sample_ids
+                    matched_genomic_info = oncokb_matched_genomic_info
 
         # execute query against clinical table
         elif node['type'] == 'clinical':
@@ -478,7 +467,6 @@ class MatchEngine(object):
             else:
                 matched_sample_ids = set(self.db.clinical.find(c).distinct('SAMPLE_ID'))
                 if len(matched_sample_ids) > 0:
-                    # print(item, c)
                     # collect clinical matching criteria
                     for sample_id in matched_sample_ids:
                         clinical_info = {}
