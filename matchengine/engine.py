@@ -345,9 +345,9 @@ class MatchEngine(object):
         proj = {
             'SAMPLE_ID': 1,
             'TRUE_HUGO_SYMBOL': 1,
-            'TRUE_PROTEIN_CHANGE':1,
-            'TRUE_VARIANT_CLASSIFICATION':1,
-            'VARIANT_CATEGORY':1,
+            'TRUE_PROTEIN_CHANGE': 1,
+            'TRUE_VARIANT_CLASSIFICATION': 1,
+            'VARIANT_CATEGORY': 1,
             'ANNOTATED_VARIANT': 1,
             '_id': 1
         }
@@ -434,7 +434,6 @@ class MatchEngine(object):
                 matched_sample_ids, matched_genomic_info = self.general_match(copy.deepcopy(item))
             # run general_match when any key appears in general_key_map and its value is not null.
             elif not set(item_keys).isdisjoint(general_map_keys) and 'hugo_symbol' in item and item['hugo_symbol']:
-                print item_keys
                 matched_sample_ids, matched_genomic_info = self.general_match(copy.deepcopy(item))
                 run_general_match = True
 
@@ -448,7 +447,7 @@ class MatchEngine(object):
                     matched_sample_ids.intersection(oncokb_matched_sample_ids)
                     matched_genomic_info = list()
                     if len(matched_sample_ids) > 0:
-                        matched_genomic_info = list(genomic_info for genomic_info in oncokb_matched_genomic_info if genomic_info['sample_id'] in matched_sample_ids )
+                        matched_genomic_info = [genomic_info for genomic_info in oncokb_matched_genomic_info if genomic_info['sample_id'] in matched_sample_ids]
                 else:
                     matched_sample_ids = oncokb_matched_sample_ids
                     matched_genomic_info = oncokb_matched_genomic_info
@@ -511,6 +510,16 @@ class MatchEngine(object):
                         tree_genomic[match['sample_id']] = [match]
                     else:
                         tree_genomic[match['sample_id']].append(match)
+                        # if 'genomic_id' in match:
+                        #     genomic_ids = [str(genomic_info['genomic_id']) for genomic_info in tree_genomic[match['sample_id']] if 'genomic_id' in genomic_info]
+                        #     if not (str(match['genomic_id']) in genomic_ids):
+                        #         tree_genomic[match['sample_id']].append(match)
+                        # else:
+                        #     genomic_str_set = set(json.dumps(genomic_info) for genomic_info in tree_genomic[match['sample_id']])
+                        #     pre_size = len(genomic_str_set)
+                        #     genomic_str_set.add(json.dumps(match))
+                        #     if pre_size != len(genomic_str_set):
+                        #         tree_genomic[match['sample_id']].append(match)
 
                 for match in node['matched_clinical_info']:
                     if match['sample_id'] not in tree_clinical:
@@ -539,30 +548,24 @@ class MatchEngine(object):
         final_genomic_infos = [tree_genomic[i] for i in final_sample_ids]
         final_clinical_infos = [tree_clinical[i] for i in final_sample_ids]
 
-        # Remove duplicate alteration
-        for sample in final_genomic_infos:
+        # Only used for OncoKb since genomic_id is not required to OncoKB
+        for genomic_infos, clinical_infos in zip(final_genomic_infos, final_clinical_infos):
             sample_set = set()
-            pre_size = len(sample_set)
-            sample_match_info = list()
-            for alteration in sample:
-                alteration_copy = copy.deepcopy(alteration)
-                if 'genomic_id' in alteration_copy:
-                    alteration_copy['genomic_id'] = str(alteration_copy['genomic_id'])
-                alteration_string = json.dumps(alteration_copy)
-                sample_set.add(alteration_string)
-                if pre_size == len(sample_set):
-                    # The string just added is a duplicate. Remove it from sample.
-                    sample.remove(alteration)
-                else:
+            pre_size = 0
+            match_info = list()
+            for genomic_info in genomic_infos:
+                if 'genomic_id' in genomic_info:
+                    del genomic_info['genomic_id']
+                # Filter duplicate sample
+                sample_set.add(json.dumps(genomic_info))
+                if pre_size != len(sample_set):
                     pre_size += 1
-                    # Merge clinical criteria to genomic criteria
-                    for clinical_group in final_clinical_infos:
-                        for clinical_info in clinical_group:
-                            if alteration['sample_id'] == clinical_info['sample_id']:
-                                alteration_copy = copy.deepcopy(alteration)
-                                alteration_copy.update(clinical_info)
-                                sample_match_info.append(alteration_copy)
-            final_match_infos.append(sample_match_info)
+                    for clinical_info in clinical_infos:
+                        if genomic_info['sample_id'] == clinical_info['sample_id']:
+                            genomic_info_copy = copy.deepcopy(genomic_info)
+                            genomic_info_copy.update(clinical_info)
+                            match_info.append(genomic_info_copy)
+            final_match_infos.append(match_info)
 
         return final_sample_ids, final_match_infos
 

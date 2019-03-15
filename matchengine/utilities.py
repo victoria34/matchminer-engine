@@ -500,7 +500,8 @@ def get_coordinating_center(trial):
     else:
         return trial['_summary']['coordinating_center']
 
-def oncokb_api_match(db,collection_name):
+
+def oncokb_api_match(db, collection_name):
     """
     Get all trial matched results from OncoKB API
     :param db: mongo database
@@ -542,7 +543,7 @@ def oncokb_api_match(db,collection_name):
         'TRUE_PROTEIN_CHANGE':1
     }
     genomic_collection = db[collection_name]
-    genomic_results = list(genomic_collection.find({},genomic_proj))
+    genomic_results = list(genomic_collection.find({}, genomic_proj))
     for genomic in genomic_results:
         if 'TRUE_HUGO_SYMBOL' in genomic and genomic['TRUE_HUGO_SYMBOL'] and 'TRUE_PROTEIN_CHANGE' in genomic and genomic['TRUE_PROTEIN_CHANGE']:
             query = {
@@ -594,6 +595,7 @@ def oncokb_api_match(db,collection_name):
 
     return matched_results
 
+
 def find_genomic_node(match, node_infos):
     """Find all genomic nodes under 'match' object """
 
@@ -609,6 +611,7 @@ def find_genomic_node(match, node_infos):
             find_genomic_node(or_node, node_infos)
     return node_infos
 
+
 def get_hugo_variant_info(genomic_node):
     """Get hugo_symbol and annotated_variant from a genomic node of trials"""
 
@@ -617,6 +620,7 @@ def get_hugo_variant_info(genomic_node):
         "hugoSymbol": genomic_node['hugo_symbol']
     }
     return annotated_variant
+
 
 def process_cmd(type, uri, file, collection = None, upsert = None, is_json_array = False):
     """
@@ -658,6 +662,7 @@ def process_cmd(type, uri, file, collection = None, upsert = None, is_json_array
 
     return cmd
 
+
 def process_mlab_uri(uri):
     user_pass = ((uri.split('//', 1)[-1]).split('@', 1)[0]).split(':', 1)
     user = user_pass[0]
@@ -666,9 +671,11 @@ def process_mlab_uri(uri):
     dbname = uri.split('/')[-1]
     return user, password, address, dbname
 
+
 def set_match_method(method):
     global match_method
     match_method = method
+
 
 def get_match_method():
     return match_method
