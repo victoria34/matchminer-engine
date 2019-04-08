@@ -490,7 +490,6 @@ class MatchEngine(object):
 
         tree_genomic = {}
         tree_clinical = {}
-        final_match_infos = list() # combination of matched genomic_info and clinical_info
         for node_id in list(nx.dfs_postorder_nodes(g, source=1)):
 
             # get node and its child
@@ -510,16 +509,6 @@ class MatchEngine(object):
                         tree_genomic[match['sample_id']] = [match]
                     else:
                         tree_genomic[match['sample_id']].append(match)
-                        # if 'genomic_id' in match:
-                        #     genomic_ids = [str(genomic_info['genomic_id']) for genomic_info in tree_genomic[match['sample_id']] if 'genomic_id' in genomic_info]
-                        #     if not (str(match['genomic_id']) in genomic_ids):
-                        #         tree_genomic[match['sample_id']].append(match)
-                        # else:
-                        #     genomic_str_set = set(json.dumps(genomic_info) for genomic_info in tree_genomic[match['sample_id']])
-                        #     pre_size = len(genomic_str_set)
-                        #     genomic_str_set.add(json.dumps(match))
-                        #     if pre_size != len(genomic_str_set):
-                        #         tree_genomic[match['sample_id']].append(match)
 
                 for match in node['matched_clinical_info']:
                     if match['sample_id'] not in tree_clinical:
@@ -540,34 +529,54 @@ class MatchEngine(object):
 
                     if node['type'] == 'and':
                         node['matched_sample_ids'].intersection_update(s_list)
+                        for sample_id in node['matched_sample_ids']:
+                            temp_tree_genomic = []
+                            if tree_genomic and sample_id in tree_genomic:
+                                for genomic_info in tree_genomic[sample_id]:
+                                    if tree_clinical and sample_id in tree_clinical and \
+                                    not ('trial_oncotree_primary_diagnosis' in genomic_info or 'trial_age_numerical' in genomic_info):
+                                        for clinical_info in tree_clinical[sample_id]:
+                                            temp_genomic_info = {}
+                                            temp_genomic_info.update(genomic_info)
+                                            temp_genomic_info.update(clinical_info)
+                                            temp_tree_genomic.append(temp_genomic_info)
+                            if temp_tree_genomic:
+                                tree_genomic[sample_id] = temp_tree_genomic
 
                     elif node['type'] == 'or':
                         node['matched_sample_ids'].update(s_list)
+                        for sample_id in node['matched_sample_ids']:
+                            temp_tree_genomic = []
+                            if tree_genomic and sample_id in tree_genomic:
+                                for genomic_info in tree_genomic[sample_id]:
+                                    if tree_clinical and sample_id in tree_clinical and \
+                                    not ('trial_oncotree_primary_diagnosis' in genomic_info or 'trial_age_numerical' in genomic_info):
+                                        for clinical_info in tree_clinical[sample_id]:
+                                            temp_genomic_info = {}
+                                            temp_genomic_info.update(genomic_info)
+                                            temp_genomic_info.update(clinical_info)
+                                            temp_tree_genomic.append(temp_genomic_info)
+                            if temp_tree_genomic:
+                                tree_genomic[sample_id] = temp_tree_genomic
 
         final_sample_ids = g.node[1]['matched_sample_ids']
         final_genomic_infos = [tree_genomic[i] for i in final_sample_ids]
-        final_clinical_infos = [tree_clinical[i] for i in final_sample_ids]
 
-        # Only used for OncoKb since genomic_id is not required to OncoKB
-        for genomic_infos, clinical_infos in zip(final_genomic_infos, final_clinical_infos):
+        for genomic_infos in final_genomic_infos:
             sample_set = set()
             pre_size = 0
-            match_info = list()
             for genomic_info in genomic_infos:
                 if 'genomic_id' in genomic_info:
                     del genomic_info['genomic_id']
                 # Filter duplicate sample
                 sample_set.add(json.dumps(genomic_info))
-                if pre_size != len(sample_set):
+                if pre_size == len(sample_set):
+                    # The string just added is a duplicate. Remove it from sample.
+                    genomic_infos.remove(genomic_info)
+                else:
                     pre_size += 1
-                    for clinical_info in clinical_infos:
-                        if genomic_info['sample_id'] == clinical_info['sample_id']:
-                            genomic_info_copy = copy.deepcopy(genomic_info)
-                            genomic_info_copy.update(clinical_info)
-                            match_info.append(genomic_info_copy)
-            final_match_infos.append(match_info)
 
-        return final_sample_ids, final_match_infos
+        return final_sample_ids, final_genomic_infos
 
     def prepare_clinical_criteria(self, item):
         """
