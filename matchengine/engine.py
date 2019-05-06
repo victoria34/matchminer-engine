@@ -837,6 +837,7 @@ class MatchEngine(object):
         """Add all the oncotree nodes """
 
         nodes = []
+        nodes_txt = []
         tmpc = {'ONCOTREE_PRIMARY_DIAGNOSIS_NAME': {}}
         for key in c['ONCOTREE_PRIMARY_DIAGNOSIS_NAME'].keys():
 
@@ -848,9 +849,9 @@ class MatchEngine(object):
             for txt in diagnoses:
                 if txt.endswith("_LIQUID_") or txt == 'All Liquid Tumors' or txt.endswith("_SOLID_") or txt == 'All Solid Tumors':
 
-                    # build the nodes for liquid.
-                    node1 = oncotreenx.lookup_text(onco_tree, "Lymph")
-                    node2 = oncotreenx.lookup_text(onco_tree, "Blood")
+                    # build the nodes for liquid. Fill level_1 in tumor_tree.txt
+                    node1 = oncotreenx.lookup_text(onco_tree, "Lymphoid")
+                    node2 = oncotreenx.lookup_text(onco_tree, "Myeloid")
 
                     nodes1 = list(nx.dfs_tree(onco_tree, node1))
                     nodes2 = list(nx.dfs_tree(onco_tree, node2))
@@ -865,14 +866,17 @@ class MatchEngine(object):
                 else:
                     # get tree node.
                     node = oncotreenx.lookup_text(onco_tree, txt)
-
+                    # Main Type match
+                    if type(node) is list:
+                        nodes_txt = node
                     # get its children.
-                    if onco_tree.has_node(node):
+                    elif onco_tree.has_node(node):
                         # list of nodes.
                         nodes = list(nx.dfs_tree(onco_tree, node))
 
                         # replace it with free text.
-                nodes_txt = [onco_tree.node[n]['text'] for n in nodes]
+                if len(nodes) > 0:
+                    nodes_txt = [onco_tree.node[n]['text'] for n in nodes]
 
                 if key == '$eq':
                     key = '$in'
