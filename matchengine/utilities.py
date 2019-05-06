@@ -425,11 +425,7 @@ def get_db(uri):
     else:
         os.environ["MONGO_URI"] = MONGO_URI
         connection = MongoClient(MONGO_URI)
-        if 'mlab' in MONGO_URI:
-            # heroku will assign a auto-generated mongodb that cannot be renamed
-            return connection.get_default_database()
-        else:
-            return connection["matchminer"]
+        return connection["matchminer"]
 
 
 def get_structural_variants(g):
@@ -622,7 +618,7 @@ def get_hugo_variant_info(genomic_node):
     return annotated_variant
 
 
-def process_cmd(type, uri, file, collection = None, upsert = None, is_json_array = False):
+def process_cmd(type, uri, file, collection=None, upsert=None, is_json_array=False):
     """
     Generate mongo command line for loading data
     :param type: command line type 'mongorestore' or 'mongoimport'
@@ -638,20 +634,11 @@ def process_cmd(type, uri, file, collection = None, upsert = None, is_json_array
            --upsertFields: Specifies a list of fields for the query portion of the upsert.
     :return: command line string
     """
-    cmd = ''
-    if 'mlab' in uri:
-        user, password, address, dbname = process_mlab_uri(uri)
-        cmd = '%s -h %s -d %s -u %s -p %s' % (type, address, dbname, user, password)
-        if type == 'mongorestore':
-            cmd += file
-        elif type == 'mongoimport':
-            cmd += ' -c %s --file %s' % (collection, file)
-    else:
-        cmd = '%s --host localhost:27017 --db matchminer' % type
-        if type == 'mongorestore':
-            cmd += file
-        elif type == 'mongoimport':
-            cmd += ' --collection %s --file %s' % (collection, file)
+    cmd = '%s --host localhost:27017 --db matchminer' % type
+    if type == 'mongorestore':
+        cmd += file
+    elif type == 'mongoimport':
+        cmd += ' --collection %s --file %s' % (collection, file)
 
     if not (upsert is None) and type == 'mongoimport':
         if upsert['is_upsert']:
@@ -661,21 +648,3 @@ def process_cmd(type, uri, file, collection = None, upsert = None, is_json_array
         cmd += ' --jsonArray'
 
     return cmd
-
-
-def process_mlab_uri(uri):
-    user_pass = ((uri.split('//', 1)[-1]).split('@', 1)[0]).split(':', 1)
-    user = user_pass[0]
-    password = user_pass[1]
-    address = (uri.split('@', 1)[-1]).split('/', 1)[0]
-    dbname = uri.split('/')[-1]
-    return user, password, address, dbname
-
-
-def set_match_method(method):
-    global match_method
-    match_method = method
-
-
-def get_match_method():
-    return match_method

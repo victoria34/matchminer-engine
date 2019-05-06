@@ -54,7 +54,7 @@ def add_sort_order(trial_match_df):
             sort_order = sort_by_cancer_type(match, sort_order)
             sort_order = sort_by_coordinating_center(match, sort_order)
 
-        # sort_order = sort_by_reverse_protocol_no(matches, sort_order)
+        sort_order = sort_by_reverse_protocol_no(matches, sort_order)
 
         # for k, v in sort_order.iteritems():
         #     print '%s | %s' % (k, v)
@@ -209,8 +209,7 @@ def sort_by_reverse_protocol_no(matches, sort_order):
 
 def final_sort(sort_order, master_sort_order):
 
-    # cols = ['tier', 'match_type', 'cancer_type', 'coordinating_center', 'rev_protocol_no']
-    cols = ['tier', 'match_type', 'cancer_type', 'coordinating_center']
+    cols = ['tier', 'match_type', 'cancer_type', 'coordinating_center', 'rev_protocol_no']
     sort_order_df = pd.DataFrame(sort_order.values(), columns=cols, index=sort_order.keys())
     sort_order_df.sort_values(by=cols, axis=0, ascending=True, inplace=True)
 

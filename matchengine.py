@@ -13,7 +13,7 @@ import datetime as dt
 from pymongo import ASCENDING
 
 from matchengine.engine import MatchEngine
-from matchengine.utilities import get_db, process_cmd, set_match_method
+from matchengine.utilities import get_db
 
 MONGO_URI = ""
 MONGO_DBNAME = "matchminer"
@@ -139,8 +139,6 @@ class Patient:
         for clinical_item in list(self.db.clinical.find()):
             cols = list()
             keys = clinical_item.keys()
-            # if 'PATIENT_ID' in keys:
-            #     self.db.clinical.update({'_id':clinical_item['_id']}, {"$set": {"DFCI_MRN": clinical_item['PATIENT_ID']}}, upsert=False)
             if 'BIRTH_DATE' in keys:
                 cols.append('BIRTH_DATE')
             if 'REPORT_DATE' in keys:
@@ -255,6 +253,14 @@ def load(args):
             logging.info('Adding genomic data to mongo...')
             db.genomic.insert(genomic_json)
 
+            # Create index
+            logging.info('Creating index...')
+            db.genomic.create_index([("TRUE_HUGO_SYMBOL", ASCENDING), ("WILDTYPE", ASCENDING)])
+
+        elif args.clinical and not args.genomic or args.genomic and not args.clinical:
+            logging.error('If loading patient information, please provide both clinical and genomic data.')
+            sys.exit(1)
+
 def add_trial(yml, db):
     """
     Adds file in YAML format to MongoDB
@@ -283,10 +289,9 @@ def match(args):
     """
 
     db = get_db(args.mongo_uri)
-    set_match_method(args.match_method)
 
     while True:
-        me = MatchEngine(db)
+        me = MatchEngine(db, args.match_method)
         me.find_trial_matches()
 
         # exit if it is not set to run as a nightly automated daemon, otherwise sleep for a day
@@ -359,7 +364,7 @@ if __name__ == '__main__':
     # match
     subp_p = subp.add_parser('match', help='Matches all trials in database to patients')
     subp_p.add_argument('--mongo-uri', dest='mongo_uri', required=False, default=None, help=param_mongo_uri_help)
-    subp_p.add_argument('--match-method', dest="match_method", required=False, default="oncokb", help=param_match_method_help)
+    subp_p.add_argument('--match-method', dest="match_method", required=False, default="", help=param_match_method_help)
     subp_p.add_argument('--daemon', dest="daemon", required=False, action="store_true", help=param_daemon_help)
     subp_p.add_argument('--json', dest="json_format", required=False, action="store_true", help=param_json_help)
     subp_p.add_argument('--csv', dest="csv_format", required=False, action="store_true", help=param_csv_help)

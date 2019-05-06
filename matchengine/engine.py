@@ -40,7 +40,7 @@ schema_registry.add('map', schema.map)
 
 class MatchEngine(object):
 
-    def __init__(self, db):
+    def __init__(self, db, match_method):
         # get the database.
         self.db = db
 
@@ -56,6 +56,9 @@ class MatchEngine(object):
             {'key_old': 'MMR_STATUS', 'key_new': 'MMR_STATUS', 'values': {}},
             {'key_old': 'MS_STATUS', 'key_new': 'MMR_STATUS', 'values': {}}
         ])
+
+        # get match_type to decide use which match method. The default is general_match()
+        self.match_method = match_method
 
     def bootstrap_map(self):
         """Loads the map into the database between yaml field names and their corresponding database field names"""
@@ -417,40 +420,44 @@ class MatchEngine(object):
         # execute query against genomic table
         if node['type'] == 'genomic':
             item = node['value']
-            # item_deepcopy = copy.deepcopy(item)
 
-            # check if "item" can run general_match(). "hugo_symbol" is required for any match method
-            general_map_keys = ["variant_category", "protein_change", "wildcard_protein_change",
-                                "variant_classification", "exon", "cnv_call", "wildtype", "mmr_status", "ms_status"]
+            if self.match_method == 'oncokb':
 
-            # If genomic['annotated_variant'] = 'wildtype', run general_match() and skip oncokb_match().
-            if 'annotated_variant' in item and item['annotated_variant'].lower().strip() == 'wildtype':
-                item['wildtype'] = 'true'
-                del item['annotated_variant']
+                # check if "item" can run general_match(). "hugo_symbol" is required for any match method
+                general_map_keys = ["variant_category", "protein_change", "wildcard_protein_change",
+                                    "variant_classification", "exon", "cnv_call", "wildtype", "mmr_status", "ms_status"]
 
-            item_keys = item.keys()
-            # i.e., {'type': 'genomic', 'value': {'HUGO_SYMBOL': '!BRAF'}}
-            if len(item_keys) == 1:
+                # If genomic['annotated_variant'] = 'wildtype', run general_match() and skip oncokb_match().
+                if 'annotated_variant' in item and item['annotated_variant'].lower().strip() == 'wildtype':
+                    item['wildtype'] = 'true'
+                    del item['annotated_variant']
+
+                item_keys = item.keys()
+                # i.e., {'type': 'genomic', 'value': {'HUGO_SYMBOL': '!BRAF'}}
+                if len(item_keys) == 1:
+                    matched_sample_ids, matched_genomic_info = self.general_match(copy.deepcopy(item))
+                # run general_match when any key appears in general_key_map and its value is not null.
+                elif not set(item_keys).isdisjoint(general_map_keys) and 'hugo_symbol' in item and item['hugo_symbol']:
+                    matched_sample_ids, matched_genomic_info = self.general_match(copy.deepcopy(item))
+                    run_general_match = True
+
+                # Matching trials only by "annotated_variant" is not be supported currently.
+                if 'hugo_symbol' in item and item['hugo_symbol'] and 'annotated_variant' in item and item['annotated_variant'] \
+                and not ('undefined' in item['hugo_symbol'] or 'undefined' in item['annotated_variant']):
+                    oncokb_matched_sample_ids, oncokb_matched_genomic_info = self.oncokb_match(item)
+
+                    # check if general_match() has been run
+                    if run_general_match:
+                        matched_sample_ids.intersection(oncokb_matched_sample_ids)
+                        matched_genomic_info = list()
+                        if len(matched_sample_ids) > 0:
+                            matched_genomic_info = [genomic_info for genomic_info in oncokb_matched_genomic_info if genomic_info['sample_id'] in matched_sample_ids]
+                    else:
+                        matched_sample_ids = oncokb_matched_sample_ids
+                        matched_genomic_info = oncokb_matched_genomic_info
+
+            else:
                 matched_sample_ids, matched_genomic_info = self.general_match(copy.deepcopy(item))
-            # run general_match when any key appears in general_key_map and its value is not null.
-            elif not set(item_keys).isdisjoint(general_map_keys) and 'hugo_symbol' in item and item['hugo_symbol']:
-                matched_sample_ids, matched_genomic_info = self.general_match(copy.deepcopy(item))
-                run_general_match = True
-
-            # Matching trials only by "annotated_variant" is not be supported currently.
-            if 'hugo_symbol' in item and item['hugo_symbol'] and 'annotated_variant' in item and item['annotated_variant'] \
-            and not ('undefined' in item['hugo_symbol'] or 'undefined' in item['annotated_variant']):
-                oncokb_matched_sample_ids, oncokb_matched_genomic_info = self.oncokb_match(item)
-
-                # check if general_match() has been run
-                if run_general_match:
-                    matched_sample_ids.intersection(oncokb_matched_sample_ids)
-                    matched_genomic_info = list()
-                    if len(matched_sample_ids) > 0:
-                        matched_genomic_info = [genomic_info for genomic_info in oncokb_matched_genomic_info if genomic_info['sample_id'] in matched_sample_ids]
-                else:
-                    matched_sample_ids = oncokb_matched_sample_ids
-                    matched_genomic_info = oncokb_matched_genomic_info
 
         # execute query against clinical table
         elif node['type'] == 'clinical':
@@ -694,7 +701,8 @@ class MatchEngine(object):
         # initialize trial matches
         trial_matches = []
 
-        self.oncokb_matched_result = oncokb_api_match(self.db, "genomic")
+        if self.match_method == 'oncokb':
+            self.oncokb_matched_result = oncokb_api_match(self.db, "genomic")
         # for all trials check for matches on the dose, arm, and step levels and keep track of what is found
         for trial in all_trials:
 
