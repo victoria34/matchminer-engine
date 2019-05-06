@@ -253,13 +253,13 @@ def load(args):
             logging.info('Adding genomic data to mongo...')
             db.genomic.insert(genomic_json)
 
-            # Create index
-            logging.info('Creating index...')
-            db.genomic.create_index([("TRUE_HUGO_SYMBOL", ASCENDING), ("WILDTYPE", ASCENDING)])
+        # Create index
+        logging.info('Creating index...')
+        db.genomic.create_index([("TRUE_HUGO_SYMBOL", ASCENDING), ("WILDTYPE", ASCENDING)])
 
-        elif args.clinical and not args.genomic or args.genomic and not args.clinical:
-            logging.error('If loading patient information, please provide both clinical and genomic data.')
-            sys.exit(1)
+    elif args.clinical and not args.genomic or args.genomic and not args.clinical:
+        logging.error('If loading patient information, please provide both clinical and genomic data.')
+        sys.exit(1)
 
 def add_trial(yml, db):
     """
