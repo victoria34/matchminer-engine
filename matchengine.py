@@ -13,7 +13,7 @@ import datetime as dt
 from pymongo import ASCENDING
 
 from matchengine.engine import MatchEngine
-from matchengine.utilities import get_db
+from matchengine.utilities import get_db, process_cmd
 
 MONGO_URI = ""
 MONGO_DBNAME = "matchminer"
