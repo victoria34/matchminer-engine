@@ -11,7 +11,7 @@ import pandas as pd
 import datetime as dt
 from pymongo import MongoClient
 
-import oncotreenx
+import matchengine.oncotreenx as oncotreenx
 from matchengine.settings import months, TUMOR_TREE, mmr_map, mmr_map_rev
 
 

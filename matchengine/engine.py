@@ -412,6 +412,7 @@ class MatchEngine(object):
             matched_genomic_info: genomic information regarding each match
         """
 
+        matched_clinical_info = list()
         matched_genomic_info = list()
         matched_sample_ids = set()
         run_general_match = False
@@ -471,13 +472,21 @@ class MatchEngine(object):
                 matched_sample_ids = list()
             else:
                 matched_sample_ids = set(self.db.clinical.find(c).distinct('SAMPLE_ID'))
+                if len(matched_sample_ids) > 0:
+                    # collect clinical matching criteria
+                    for sample_id in matched_sample_ids:
+                        clinical_info = {}
+                        for key in item:
+                            clinical_info['trial_' + key.encode("utf-8")] = item[key]
+                        clinical_info['sample_id'] = sample_id
+                        matched_clinical_info.append(clinical_info)
 
         else:
             logging.info("bad match tree")
             return
 
         # return a list of sample ids and match information
-        return matched_sample_ids, matched_genomic_info
+        return matched_sample_ids, matched_genomic_info, matched_clinical_info
 
     def traverse_match_tree(self, g):
         """ Finds matches for a given match tree
@@ -486,6 +495,7 @@ class MatchEngine(object):
         :return: match set for a tree
         """
 
+        tree_clinical = {}
         tree_genomic = {}
         for node_id in list(nx.dfs_postorder_nodes(g, source=1)):
 
@@ -495,16 +505,23 @@ class MatchEngine(object):
 
             # if leaf node then execute query
             if len(successors) == 0:
-                matched_sample_ids, matched_genomic_info = self.run_query(node)
+                matched_sample_ids, matched_genomic_info, matched_clinical_info = self.run_query(node)
 
                 node['matched_sample_ids'] = matched_sample_ids
                 node['matched_genomic_info'] = matched_genomic_info
+                node['matched_clinical_info'] = matched_clinical_info
 
                 for match in node['matched_genomic_info']:
                     if match['sample_id'] not in tree_genomic:
                         tree_genomic[match['sample_id']] = [match]
                     else:
                         tree_genomic[match['sample_id']].append(match)
+
+                for match in node['matched_clinical_info']:
+                    if match['sample_id'] not in tree_clinical:
+                        tree_clinical[match['sample_id']] = [match]
+                    else:
+                        tree_clinical[match['sample_id']].append(match)
 
             # else apply logic based on and/or
             else:
@@ -518,9 +535,35 @@ class MatchEngine(object):
 
                     if node['type'] == 'and':
                         node['matched_sample_ids'].intersection_update(s_list)
+                        for sample_id in node['matched_sample_ids']:
+                            temp_tree_genomic = []
+                            if tree_genomic and sample_id in tree_genomic:
+                                for genomic_info in tree_genomic[sample_id]:
+                                    if tree_clinical and sample_id in tree_clinical and \
+                                            not ('trial_oncotree_primary_diagnosis' in genomic_info or 'trial_age_numerical' in genomic_info):
+                                        for clinical_info in tree_clinical[sample_id]:
+                                            temp_genomic_info = {}
+                                            temp_genomic_info.update(genomic_info)
+                                            temp_genomic_info.update(clinical_info)
+                                            temp_tree_genomic.append(temp_genomic_info)
+                            if temp_tree_genomic:
+                                tree_genomic[sample_id] = temp_tree_genomic
 
                     elif node['type'] == 'or':
                         node['matched_sample_ids'].update(s_list)
+                        for sample_id in node['matched_sample_ids']:
+                            temp_tree_genomic = []
+                            if tree_genomic and sample_id in tree_genomic:
+                                for genomic_info in tree_genomic[sample_id]:
+                                    if tree_clinical and sample_id in tree_clinical and \
+                                            not ('trial_oncotree_primary_diagnosis' in genomic_info or 'trial_age_numerical' in genomic_info):
+                                        for clinical_info in tree_clinical[sample_id]:
+                                            temp_genomic_info = {}
+                                            temp_genomic_info.update(genomic_info)
+                                            temp_genomic_info.update(clinical_info)
+                                            temp_tree_genomic.append(temp_genomic_info)
+                            if temp_tree_genomic:
+                                tree_genomic[sample_id] = temp_tree_genomic
 
         final_sample_ids = g.node[1]['matched_sample_ids']
         final_genomic_infos = [tree_genomic[i] for i in final_sample_ids]
@@ -778,11 +821,11 @@ class MatchEngine(object):
                         match['trial_accrual_status'] = 'closed'
                 elif match_segment == 'arm':
                     if 'arm_description' in trial_segment and trial_segment['arm_description']:
-                        match['arm_description'] = str(trial_segment['arm_description'])
+                        match['arm_description'] = str(trial_segment['arm_description'].encode('utf-8'))
                     if 'arm_internal_id' in trial_segment:
-                        match['internal_id'] = str(trial_segment['arm_internal_id'])
+                        match['internal_id'] = str(trial_segment['arm_internal_id'].encode('utf-8'))
                     if 'arm_code' in trial_segment:
-                        match['code'] = str(trial_segment['arm_code'])
+                        match['code'] = str(trial_segment['arm_code'].encode('utf-8'))
                     if 'arm_suspended' in trial_segment and trial_segment['arm_suspended'].lower() == 'y':
                         match['trial_accrual_status'] = 'closed'
                 elif match_segment == 'step':
