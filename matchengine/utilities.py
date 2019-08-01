@@ -540,14 +540,13 @@ def oncokb_api_match(db, collection_name):
     }
     genomic_collection = db[collection_name]
     genomic_results = list(genomic_collection.find({}, genomic_proj))
+    queries_dic = {}
+    annotated_variants_dic = {}
     for genomic in genomic_results:
         if 'TRUE_HUGO_SYMBOL' in genomic and genomic['TRUE_HUGO_SYMBOL'] and 'TRUE_PROTEIN_CHANGE' in genomic and genomic['TRUE_PROTEIN_CHANGE']:
-            query = {
-                "id": genomic['SAMPLE_ID'],
-                "hugoSymbol": genomic['TRUE_HUGO_SYMBOL'],
-                "alteration": genomic['TRUE_PROTEIN_CHANGE']
-            }
-            queries.append(query)
+            if genomic['TRUE_HUGO_SYMBOL'] not in queries_dic:
+                queries_dic[genomic['TRUE_HUGO_SYMBOL']] = set()
+            queries_dic[genomic['TRUE_HUGO_SYMBOL']].add(genomic['TRUE_PROTEIN_CHANGE'])
 
     # get genomic node info from collection trial
     steps = list(db.trial.find({'treatment_list.step':{'$exists': 'true', '$ne': []}}, {'_id': 0}));
@@ -557,15 +556,30 @@ def oncokb_api_match(db, collection_name):
                 for arm in arm_match['arm']:
                     if 'match' in arm and arm['match']:
                         for match in arm['match']:
-                            find_genomic_node(match, annotated_variants)
+                            find_genomic_node(match, annotated_variants_dic)
                     if 'dose_level' in arm:
                         for dose in arm['dose_level']:
                             if 'match' in dose and dose['match']:
                                 for match in dose['match']:
-                                    find_genomic_node(match, annotated_variants)
+                                    find_genomic_node(match, annotated_variants_dic)
             if 'match' in arm_match and arm_match['match']:
                 for match in arm_match['match']:
-                    find_genomic_node(match, annotated_variants)
+                    find_genomic_node(match, annotated_variants_dic)
+
+    for hugo_symbol in annotated_variants_dic:
+        for alteration in annotated_variants_dic[hugo_symbol]:
+            annotated_variants.append({
+                "hugoSymbol": hugo_symbol,
+                "alteration": alteration
+            })
+
+    for hugo_symbol in queries_dic:
+        for alteration in queries_dic[hugo_symbol]:
+            queries.append({
+                "id": hugo_symbol + alteration,
+                "hugoSymbol": hugo_symbol,
+                "alteration": alteration
+            })
 
     body = {
         "oncokbVariants": annotated_variants,
@@ -581,7 +595,7 @@ def oncokb_api_match(db, collection_name):
             for genomic_alteration in trial_match['result']:
                 if genomic_alteration['hugoSymbol'] in matched_results:
                     if protein_change in matched_results[genomic_alteration['hugoSymbol']]:
-                        if not (genomic_alteration['alteration'] in matched_results[genomic_alteration['hugoSymbol']][protein_change]):
+                        if genomic_alteration['alteration'] not in matched_results[genomic_alteration['hugoSymbol']][protein_change]:
                             matched_results[genomic_alteration['hugoSymbol']][protein_change].append(genomic_alteration['alteration'])
                     else:
                         matched_results[genomic_alteration['hugoSymbol']][protein_change] = [genomic_alteration['alteration']]
@@ -592,20 +606,23 @@ def oncokb_api_match(db, collection_name):
     return matched_results
 
 
-def find_genomic_node(match, node_infos):
+def find_genomic_node(match, nodes_dic):
     """Find all genomic nodes under 'match' object """
 
     if 'genomic' in match and match['genomic'] and \
                     'hugo_symbol' in match['genomic'] and match['genomic']['hugo_symbol'] and \
-                    'annotated_variant' in match['genomic'] and match['genomic']['annotated_variant']:
-        node_infos.append(get_hugo_variant_info(match['genomic']))
+                    'annotated_variant' in match['genomic'] and match['genomic']['annotated_variant'] and \
+                    '!' not in match['genomic']['annotated_variant']:
+        if match['genomic']['hugo_symbol'] not in nodes_dic:
+            nodes_dic[match['genomic']['hugo_symbol']] = set()
+        nodes_dic[match['genomic']['hugo_symbol']].add(match['genomic']['annotated_variant'])
     if 'and' in match and match['and']:
         for and_node in match['and']:
-            find_genomic_node(and_node, node_infos)
+            find_genomic_node(and_node, nodes_dic)
     if 'or' in match and match['or']:
         for or_node in match['or']:
-            find_genomic_node(or_node, node_infos)
-    return node_infos
+            find_genomic_node(or_node, nodes_dic)
+    return nodes_dic
 
 
 def get_hugo_variant_info(genomic_node):

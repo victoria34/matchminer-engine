@@ -735,16 +735,16 @@ class MatchEngine(object):
                                 if 'match' in dose and dose['match']:
                                     trial_matches = self._assess_match(mrn_map, trial_matches, trial, dose, 'dose', trial_status)
 
-        trial_match_df = pd.DataFrame.from_dict(trial_matches)
+        trial_matches_df = pd.DataFrame.from_dict(trial_matches)
 
         # force garbage collector to remove unused object after conversion to df
         del trial_matches
         gc.collect()
 
         # sort
-        logging.info('Sorting trial matches.')
-        trial_matches_df = add_sort_order(trial_match_df)
-        logging.info('Number of trial matches: %s' % str(trial_match_df.shape[0]))
+        # logging.info('Sorting trial matches.')
+        # trial_matches_df = add_sort_order(trial_match_df)
+        # logging.info('Number of trial matches: %s' % str(trial_match_df.shape[0]))
 
         # add to db
         logging.info('Adding trial matches to database')
