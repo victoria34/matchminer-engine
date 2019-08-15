@@ -828,6 +828,8 @@ class MatchEngine(object):
                         match['code'] = str(trial_segment['arm_code'].encode('utf-8'))
                     if 'arm_suspended' in trial_segment and trial_segment['arm_suspended'].lower() == 'y':
                         match['trial_accrual_status'] = 'closed'
+                    if 'arm_type' in trial_segment and trial_segment['arm_type']:
+                        match['arm_type'] = str(trial_segment['arm_type'])
                 elif match_segment == 'step':
                     if 'step_internal_id' in trial_segment:
                         match['internal_id'] = str(trial_segment['step_internal_id'])
