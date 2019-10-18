@@ -388,7 +388,7 @@ def add_matches(trial_matches_df, db):
             lambda x: dt.datetime.strftime(x, '%Y-%m-%d %X') if pd.notnull(x) else x)
 
     if len(trial_matches_df.index) > 0:
-        db.trial_match.drop()
+        # db.trial_match.drop()
         for i in range(0, trial_matches_df.shape[0], 1000):
             records = json.loads(trial_matches_df[i:i + 1000].T.to_json()).values()
             db.trial_match.insert_many(records)
@@ -536,7 +536,7 @@ def oncokb_api_match(db, collection_name):
     genomic_proj = {
         'SAMPLE_ID': 1,
         'TRUE_HUGO_SYMBOL': 1,
-        'TRUE_PROTEIN_CHANGE':1
+        'TRUE_PROTEIN_CHANGE': 1
     }
     genomic_collection = db[collection_name]
     genomic_results = list(genomic_collection.find({}, genomic_proj))
@@ -549,7 +549,7 @@ def oncokb_api_match(db, collection_name):
             queries_dic[genomic['TRUE_HUGO_SYMBOL']].add(genomic['TRUE_PROTEIN_CHANGE'])
 
     # get genomic node info from collection trial
-    steps = list(db.trial.find({'treatment_list.step':{'$exists': 'true', '$ne': []}}, {'_id': 0}));
+    steps = list(db.trial.find({'treatment_list.step': {'$exists': 'true', '$ne': []}}, {'_id': 0}))
     for step in steps:
         for arm_match in step['treatment_list']['step']:
             if 'arm' in arm_match and arm_match['arm']:
@@ -594,14 +594,14 @@ def oncokb_api_match(db, collection_name):
             protein_change = trial_match['query']['alteration']
             for genomic_alteration in trial_match['result']:
                 if genomic_alteration['hugoSymbol'] in matched_results:
-                    if protein_change in matched_results[genomic_alteration['hugoSymbol']]:
-                        if genomic_alteration['alteration'] not in matched_results[genomic_alteration['hugoSymbol']][protein_change]:
-                            matched_results[genomic_alteration['hugoSymbol']][protein_change].append(genomic_alteration['alteration'])
+                    if genomic_alteration['alteration'] in matched_results[genomic_alteration['hugoSymbol']]:
+                        if protein_change not in matched_results[genomic_alteration['hugoSymbol']][genomic_alteration['alteration']]:
+                            matched_results[genomic_alteration['hugoSymbol']][genomic_alteration['alteration']].append(protein_change)
                     else:
-                        matched_results[genomic_alteration['hugoSymbol']][protein_change] = [genomic_alteration['alteration']]
+                        matched_results[genomic_alteration['hugoSymbol']][genomic_alteration['alteration']] = [protein_change]
                 else:
                     matched_results[genomic_alteration['hugoSymbol']] = {}
-                    matched_results[genomic_alteration['hugoSymbol']][protein_change] = [genomic_alteration['alteration']]
+                    matched_results[genomic_alteration['hugoSymbol']][genomic_alteration['alteration']] = [protein_change]
 
     return matched_results
 
@@ -611,11 +611,11 @@ def find_genomic_node(match, nodes_dic):
 
     if 'genomic' in match and match['genomic'] and \
                     'hugo_symbol' in match['genomic'] and match['genomic']['hugo_symbol'] and \
-                    'annotated_variant' in match['genomic'] and match['genomic']['annotated_variant'] and \
-                    '!' not in match['genomic']['annotated_variant']:
+                    'annotated_variant' in match['genomic'] and match['genomic']['annotated_variant']:
+        hugo_symbol, annotated_variant, track_neg = format_genomic_node(match['genomic'])
         if match['genomic']['hugo_symbol'] not in nodes_dic:
-            nodes_dic[match['genomic']['hugo_symbol']] = set()
-        nodes_dic[match['genomic']['hugo_symbol']].add(match['genomic']['annotated_variant'])
+            nodes_dic[hugo_symbol] = set()
+        nodes_dic[hugo_symbol].add(annotated_variant)
     if 'and' in match and match['and']:
         for and_node in match['and']:
             find_genomic_node(and_node, nodes_dic)
@@ -623,6 +623,28 @@ def find_genomic_node(match, nodes_dic):
         for or_node in match['or']:
             find_genomic_node(or_node, nodes_dic)
     return nodes_dic
+
+
+def format_genomic_node(node):
+    hugo_symbol = ''
+    annotated_variant = ''
+    track_neg = False
+    if 'hugo_symbol' in node:
+        hugo_symbol = node['hugo_symbol'].strip()
+    if 'annotated_variant' in node:
+        annotated_variant = node['annotated_variant'].strip()
+    # Negative queries will be run as positive queries and the matched sample ids will be subtracted from
+    # the set of all sample ids in the database
+    if hugo_symbol.startswith('!'):
+        track_neg = True
+        # remove "!"
+        hugo_symbol = hugo_symbol[1:]
+
+    if annotated_variant.startswith('!'):
+        track_neg = True
+        # remove "!"
+        annotated_variant = annotated_variant[1:]
+    return hugo_symbol, annotated_variant, track_neg
 
 
 def get_hugo_variant_info(genomic_node):
@@ -665,3 +687,135 @@ def process_cmd(type, uri, file, collection=None, upsert=None, is_json_array=Fal
         cmd += ' --jsonArray'
 
     return cmd
+
+
+def read_oncotree_file():
+    with open('oncotree_mapping.json', 'r') as oncotree_file:
+        oncotree_data = json.load(oncotree_file)
+        return oncotree_data
+
+
+def check_for_genomic_node(g, node_id=1):
+    """
+    Recursively iterates down a networkx graph containing a trial's
+    match information, checking for genomic node types.
+
+    A node is clinical only if its parent is an "or" and that parents' non-self children are not
+    clinical nodes. E.g.
+    (1)
+           |--- Clinical
+    and ---|
+           |     |------ Genomic        --> NOT clinical only
+           |--- and
+                 |------ Genomic
+    (2)
+           |--- Clinical
+    and ---|
+           |     |------ Genomic        --> NOT clinical only
+           |---- or
+                 |------ Genomic
+    (3)
+                 |--- Clinical
+           |---- or
+           |     |--- Clinical
+    and ---|                            --> NOT clinical only
+           |     |------ Genomic
+           |--- and
+                 |------ Genomic
+    (4)
+                 |--- Clinical
+           |---- and
+           |     |--- Clinical
+    and ---|                            --> NOT clinical only
+           |     |------ Genomic
+           |--- or
+                 |------ Genomic
+    (5)
+           |--- Genomic
+    and ---|
+           |     |------ Clinical        --> NOT clinical only
+           |--- or
+                 |------ Clinical
+    (6)
+           |--- Clinical
+    or ----|
+           |     |------ Genomic        --> YES clinical only
+           |--- and
+                 |------ Genomic
+    More complex versions of this pattern prevent assuming a root-level "or" with a clinical child as being
+    a clinical only node. This root-level or could encompass subtrees with both genomically dependent and indepedent
+    clinical clauses.
+    :param g: Networkx graph
+    :param node_id: ID of the current node. Default starts with the base node.
+    :return: True or False: True means a genomic node exists in the graph; False means none exists.
+    """
+
+    current_node = g.node[node_id]
+
+    # assess current node
+    if current_node['type'] == 'genomic':
+        return True
+
+    # assess neighbor nodes
+    nearest_parent_ids = g.pred[node_id].keys()
+    if nearest_parent_ids:
+        neighbors = g.neighbors(nearest_parent_ids[0])
+        for neighbor_id in neighbors:
+            if neighbor_id != node_id and g.node[neighbor_id]['type'] == 'genomic':
+                return True
+
+    # assess children of current node
+    children = g.successors(node_id)
+    for child_node_id in children:
+        child_node = g.node[child_node_id]
+        if child_node['type'] == 'genomic':
+            return True
+
+    # assess all parents node to see if has case (3) and (4)
+
+    # assess current node in the context of its parents' children
+    parents = g.predecessors(node_id)
+    parent_nodes = [g.node[i] for i in parents]
+    parents_children = []
+    for parent_node_id in parents:
+        parents_children.extend(g.successors(parent_node_id))
+        nearest_grandparent_ids = g.pred[parent_node_id].keys()
+        if nearest_grandparent_ids and g.node[nearest_grandparent_ids[0]]['type'] == 'and':
+            # assess nearest parent neighbor nodes
+            parent_node_neighbors = g.neighbors(nearest_grandparent_ids[0])
+            for neighbor_id in parent_node_neighbors:
+                if g.node[neighbor_id]['type'] == 'genomic':
+                    # Like case (5)
+                    return True
+                elif g.node[neighbor_id]['type'] in ['and', 'or']:
+                    neighbor_children = g.successors(neighbor_id)
+                    for neighbor_child in neighbor_children:
+                        if g.node[neighbor_child]['type'] == 'genomic':
+                            # Like case (3) and (4)
+                            return True
+
+    for parent_node_id, parent_node in zip(parents, parent_nodes):
+        if current_node['type'] == 'clinical' and parent_node['type'] == 'or':
+            this_parents_children = [i for i in g.successors(parent_node_id) if i != node_id]
+            for this_parents_child in this_parents_children:
+                this_parents_child_node = g.node[this_parents_child]
+                if this_parents_child_node['type'] != 'clinical':
+                    return False
+        else:
+            # parent_node['type'] == 'and'
+            child_node_ids = []
+            for parents_child_node_id in parents_children:
+                if parents_child_node_id != node_id:
+                    successors = g.successors(parents_child_node_id)
+                    if successors:
+                        child_node_ids.extend(successors)
+                    elif g.node[parents_child_node_id]['type'] == 'genomic':
+                        # sibling node is 'Genomic'
+                        return True
+
+            for child_node_id in child_node_ids:
+                has_genomic_nodes = check_for_genomic_node(g, node_id=child_node_id)
+                if has_genomic_nodes:
+                    return has_genomic_nodes
+
+    return False

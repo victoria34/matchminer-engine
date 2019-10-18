@@ -126,11 +126,11 @@ class Patient:
               For the date fields in clinical data, the type of their values should be date object rather than string.
         """
         clinical_upsert = {
-            'is_upsert': True,
+            'is_upsert': False,
             'fields': ['PATIENT_ID']
         }
 
-        cmd1 = process_cmd('mongoimport', self.mongo_uri, clinical, collection='clinical', upsert=clinical_upsert, is_json_array=True)
+        cmd1 = process_cmd('mongoimport', self.mongo_uri, clinical, collection='clinical', is_json_array=True)
         cmd2 = process_cmd('mongoimport', self.mongo_uri, genomic, collection='genomic', is_json_array=True)
         subprocess.call(cmd1.split(' '))
         subprocess.call(cmd2.split(' '))
@@ -232,9 +232,9 @@ def load(args):
             db.clinical.insert(clinical_json)
 
             # Get clinical ids from mongo
-            logging.info('Adding clinical ids to genomic data...')
-            clinical_doc = list(db.clinical.find({}, {"_id": 1, "SAMPLE_ID": 1}))
-            clinical_dict = dict(zip([i['SAMPLE_ID'] for i in clinical_doc], [i['_id'] for i in clinical_doc]))
+            # logging.info('Adding clinical ids to genomic data...')
+            # clinical_doc = list(db.clinical.find({}, {"_id": 1, "SAMPLE_ID": 1}))
+            # clinical_dict = dict(zip([i['SAMPLE_ID'] for i in clinical_doc], [i['_id'] for i in clinical_doc]))
 
             # pd -> json
             if args.trial_format == 'pkl':
@@ -243,19 +243,19 @@ def load(args):
                 genomic_json = json.loads(p.genomic_df.T.to_json()).values()
 
             # Map clinical ids to genomic data
-            for item in genomic_json:
-                if item['SAMPLE_ID'] in clinical_dict:
-                    item["CLINICAL_ID"] = clinical_dict[item['SAMPLE_ID']]
-                else:
-                    item["CLINICAL_ID"] = None
+            # for item in genomic_json:
+            #     if item['SAMPLE_ID'] in clinical_dict:
+            #         item["CLINICAL_ID"] = clinical_dict[item['SAMPLE_ID']]
+            #     else:
+            #         item["CLINICAL_ID"] = None
 
             # Add genomic data to mongo
             logging.info('Adding genomic data to mongo...')
             db.genomic.insert(genomic_json)
 
         # Create index
-        logging.info('Creating index...')
-        db.genomic.create_index([("TRUE_HUGO_SYMBOL", ASCENDING), ("WILDTYPE", ASCENDING)])
+        # logging.info('Creating index...')
+        # db.genomic.create_index([("TRUE_HUGO_SYMBOL", ASCENDING), ("WILDTYPE", ASCENDING)])
 
     elif args.clinical and not args.genomic or args.genomic and not args.clinical:
         logging.error('If loading patient information, please provide both clinical and genomic data.')

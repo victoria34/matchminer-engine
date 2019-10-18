@@ -329,78 +329,46 @@ class MatchEngine(object):
         """
         results = list()
         matched_genomic_info = []
-        hugo_symbol = conditions['hugo_symbol']
-        annotated_variant = conditions['annotated_variant']
-        negative_query = False
-
-        # Negative queries will be run as positive queries and the matched sample ids will be subtracted from
-        # the set of all sample ids in the database
-        if hugo_symbol.startswith('!'):
-            negative_query = True
-            # remove "!"
-            hugo_symbol = hugo_symbol[1:]
-
-        if annotated_variant.startswith('!'):
-            negative_query = True
-            # remove "!"
-            annotated_variant = annotated_variant[1:]
+        # prepare genomic criteria
+        g, neg, match_type = self.prepare_oncokb_genomic_criteria(conditions)
 
         proj = {
             'SAMPLE_ID': 1,
             'TRUE_HUGO_SYMBOL': 1,
             'TRUE_PROTEIN_CHANGE': 1,
-            'TRUE_VARIANT_CLASSIFICATION': 1,
-            'VARIANT_CATEGORY': 1,
-            'ANNOTATED_VARIANT': 1,
-            '_id': 1
+            'MSI_TYPE': 1,
+            'COPY_NUMBER_ALTERATIONS': 1,
+            '_id': 0
         }
+        results = list(self.db.genomic.find(g, proj))
 
-        # iterate 'oncokb_matched_results' list
-        if hugo_symbol in self.oncokb_matched_result and self.oncokb_matched_result[hugo_symbol]:
-            hugo_matched_result = self.oncokb_matched_result[hugo_symbol]
-            for key in hugo_matched_result.keys():
-                if annotated_variant in hugo_matched_result[key]:
-                    # run OncoKB match criteria
-                    query = {
-                        'TRUE_HUGO_SYMBOL': hugo_symbol,
-                        'TRUE_PROTEIN_CHANGE': key
-                    }
-                    # match trial for queried genomic data
-                    results = results + list(self.db.genomic.find(query, proj))
-
-        if negative_query:
-            query = {
-                'TRUE_HUGO_SYMBOL': hugo_symbol,
-                'TRUE_PROTEIN_CHANGE': annotated_variant
-            }
-            # match trial for queried genomic data
-            results = results + list(self.db.genomic.find(query, proj))
+        genomic_alteration = self.get_genomic_alteration(conditions)
+        if neg:
             matched_sample_ids = self.all_match - set(x['SAMPLE_ID']for x in results)
-            # add genomic alterations per sample id
             matched_genomic_info = [{
                 'sample_id': sample_id,
-                'match_type': 'annotated_variant',
-                'genomic_alteration': '!' + hugo_symbol + ' !' + annotated_variant,
-                'annotated_variant': '!' + annotated_variant
+                'match_type': match_type,
+                'genomic_alteration': genomic_alteration
             } for sample_id in matched_sample_ids]
         else:
             matched_sample_ids = set(item['SAMPLE_ID'] for item in results)
-
             for item in results:
                 genomic_info = {
-                    'match_type': 'annotated_variant',
-                    'genomic_alteration': hugo_symbol + ' ' + annotated_variant,
-                    'annotated_variant': annotated_variant
+                    'match_type': match_type,
+                    'genomic_alteration': genomic_alteration
                 }
                 for field in proj:
                     if field in item:
-                        if field == '_id':
-                            genomic_info['genomic_id'] = item[field]
-                        else:
-                            genomic_info[field.lower()] = item[field]
+                        genomic_info[field.lower()] = item[field]
                 matched_genomic_info.append(genomic_info)
 
         return matched_sample_ids, matched_genomic_info
+
+    @staticmethod
+    def get_genomic_alteration(conditions):
+        genomic_alteration = (conditions['hugo_symbol'] if 'hugo_symbol' in conditions else '') + \
+                             ((' ' + conditions['annotated_variant']) if 'annotated_variant' in conditions else '')
+        return genomic_alteration.strip()
 
     def run_query(self, node):
         """
@@ -412,8 +380,7 @@ class MatchEngine(object):
             matched_genomic_info: genomic information regarding each match
         """
 
-        matched_clinical_info = list()
-        matched_genomic_info = list()
+        matched_info = list()
         matched_sample_ids = set()
         run_general_match = False
 
@@ -427,37 +394,31 @@ class MatchEngine(object):
                 general_map_keys = ["variant_category", "protein_change", "wildcard_protein_change",
                                     "variant_classification", "exon", "cnv_call", "wildtype", "mmr_status", "ms_status"]
 
-                # If genomic['annotated_variant'] = 'wildtype', run general_match() and skip oncokb_match().
-                if 'annotated_variant' in item and item['annotated_variant'].lower().strip() == 'wildtype':
-                    item['wildtype'] = 'true'
-                    del item['annotated_variant']
-
                 item_keys = item.keys()
                 # i.e., {'type': 'genomic', 'value': {'HUGO_SYMBOL': '!BRAF'}}
-                if len(item_keys) == 1:
-                    matched_sample_ids, matched_genomic_info = self.general_match(copy.deepcopy(item))
+                if len(item_keys) == 1 and item_keys[0] != 'annotated_variant':
+                    matched_sample_ids, matched_info = self.general_match(copy.deepcopy(item))
                 # run general_match when any key appears in general_key_map and its value is not null.
                 elif not set(item_keys).isdisjoint(general_map_keys) and 'hugo_symbol' in item and item['hugo_symbol']:
-                    matched_sample_ids, matched_genomic_info = self.general_match(copy.deepcopy(item))
+                    matched_sample_ids, matched_info = self.general_match(copy.deepcopy(item))
                     run_general_match = True
 
                 # Matching trials only by "annotated_variant" is not be supported currently.
-                if 'hugo_symbol' in item and item['hugo_symbol'] and 'annotated_variant' in item and item['annotated_variant'] \
-                and not ('undefined' in item['hugo_symbol'] or 'undefined' in item['annotated_variant']):
+                if 'annotated_variant' in item and item['annotated_variant']:
                     oncokb_matched_sample_ids, oncokb_matched_genomic_info = self.oncokb_match(item)
 
                     # check if general_match() has been run
                     if run_general_match:
                         matched_sample_ids.intersection(oncokb_matched_sample_ids)
-                        matched_genomic_info = list()
+                        matched_info = list()
                         if len(matched_sample_ids) > 0:
-                            matched_genomic_info = [genomic_info for genomic_info in oncokb_matched_genomic_info if genomic_info['sample_id'] in matched_sample_ids]
+                            matched_info = [genomic_info for genomic_info in oncokb_matched_genomic_info if genomic_info['sample_id'] in matched_sample_ids]
                     else:
                         matched_sample_ids = oncokb_matched_sample_ids
-                        matched_genomic_info = oncokb_matched_genomic_info
+                        matched_info = oncokb_matched_genomic_info
 
             else:
-                matched_sample_ids, matched_genomic_info = self.general_match(copy.deepcopy(item))
+                matched_sample_ids, matched_info = self.general_match(copy.deepcopy(item))
 
         # execute query against clinical table
         elif node['type'] == 'clinical':
@@ -479,14 +440,14 @@ class MatchEngine(object):
                         for key in item:
                             clinical_info['trial_' + key.encode("utf-8")] = item[key]
                         clinical_info['sample_id'] = sample_id
-                        matched_clinical_info.append(clinical_info)
+                        matched_info.append(clinical_info)
 
         else:
             logging.info("bad match tree")
             return
 
         # return a list of sample ids and match information
-        return matched_sample_ids, matched_genomic_info, matched_clinical_info
+        return matched_sample_ids, matched_info
 
     def traverse_match_tree(self, g):
         """ Finds matches for a given match tree
@@ -495,8 +456,9 @@ class MatchEngine(object):
         :return: match set for a tree
         """
 
-        tree_clinical = {}
         tree_genomic = {}
+        tree_clinical_with_genomic = {}
+        tree_clinical_only = {}
         for node_id in list(nx.dfs_postorder_nodes(g, source=1)):
 
             # get node and its child
@@ -505,84 +467,129 @@ class MatchEngine(object):
 
             # if leaf node then execute query
             if len(successors) == 0:
-                matched_sample_ids, matched_genomic_info, matched_clinical_info = self.run_query(node)
+                matched_sample_ids, matched_info = self.run_query(node)
 
                 node['matched_sample_ids'] = matched_sample_ids
-                node['matched_genomic_info'] = matched_genomic_info
-                node['matched_clinical_info'] = matched_clinical_info
 
-                for match in node['matched_genomic_info']:
-                    if match['sample_id'] not in tree_genomic:
-                        tree_genomic[match['sample_id']] = [match]
+                if node['type'] == 'genomic':
+                    for match in matched_info:
+                        if match['sample_id'] not in tree_genomic:
+                            tree_genomic[match['sample_id']] = [match]
+                        else:
+                            tree_genomic[match['sample_id']].append(match)
+                else:
+                    # node['type'] == 'clinical':
+                    node['has_genomic_nodes'] = check_for_genomic_node(g, node_id=node_id)
+                    if node['has_genomic_nodes']:
+                        tree_clinical_with_genomic = self.get_clinical_tree(node, tree_clinical_with_genomic, False)
                     else:
-                        tree_genomic[match['sample_id']].append(match)
-
-                for match in node['matched_clinical_info']:
-                    if match['sample_id'] not in tree_clinical:
-                        tree_clinical[match['sample_id']] = [match]
-                    else:
-                        tree_clinical[match['sample_id']].append(match)
-
+                        tree_clinical_only = self.get_clinical_tree(node, tree_clinical_only, True)
             # else apply logic based on and/or
             else:
-
                 node['matched_sample_ids'] = set([])
                 node['matched_sample_ids'].update(g.node[successors[0]]['matched_sample_ids'])
-                node['matched_genomic_info'] = g.node[successors[0]]['matched_genomic_info']
+                clinical_node_ids = list()
+                genomic_node_ids = list()
+                if g.node[successors[0]]['type'] == 'clinical':
+                    clinical_node_ids.append(successors[0])
+                elif g.node[successors[0]]['type'] == 'genomic':
+                    genomic_node_ids.append(successors[0])
 
                 for i in range(1, len(successors)):
-                    s_list = g.node[successors[i]]['matched_sample_ids']
+                    successor_node = g.node[successors[i]]
+                    s_list = successor_node['matched_sample_ids']
+                    if successor_node['type'] == 'clinical':
+                        clinical_node_ids.append(successors[i])
+                    elif successor_node['type'] == 'genomic':
+                        genomic_node_ids.append(successors[i])
 
                     if node['type'] == 'and':
                         node['matched_sample_ids'].intersection_update(s_list)
-                        for sample_id in node['matched_sample_ids']:
-                            temp_tree_genomic = []
-                            if tree_genomic and sample_id in tree_genomic:
-                                for genomic_info in tree_genomic[sample_id]:
-                                    if tree_clinical and sample_id in tree_clinical and \
-                                            not ('trial_oncotree_primary_diagnosis' in genomic_info or 'trial_age_numerical' in genomic_info):
-                                        for clinical_info in tree_clinical[sample_id]:
-                                            temp_genomic_info = {}
-                                            temp_genomic_info.update(genomic_info)
-                                            temp_genomic_info.update(clinical_info)
-                                            temp_tree_genomic.append(temp_genomic_info)
-                            if temp_tree_genomic:
-                                tree_genomic[sample_id] = temp_tree_genomic
-
                     elif node['type'] == 'or':
                         node['matched_sample_ids'].update(s_list)
-                        for sample_id in node['matched_sample_ids']:
-                            temp_tree_genomic = []
-                            if tree_genomic and sample_id in tree_genomic:
-                                for genomic_info in tree_genomic[sample_id]:
-                                    if tree_clinical and sample_id in tree_clinical and \
-                                            not ('trial_oncotree_primary_diagnosis' in genomic_info or 'trial_age_numerical' in genomic_info):
-                                        for clinical_info in tree_clinical[sample_id]:
-                                            temp_genomic_info = {}
-                                            temp_genomic_info.update(genomic_info)
-                                            temp_genomic_info.update(clinical_info)
-                                            temp_tree_genomic.append(temp_genomic_info)
-                            if temp_tree_genomic:
-                                tree_genomic[sample_id] = temp_tree_genomic
+
+                if clinical_node_ids:
+                    node['clinical_node_ids'] = clinical_node_ids
+                if genomic_node_ids:
+                    node['genomic_node_ids'] = genomic_node_ids
 
         final_sample_ids = g.node[1]['matched_sample_ids']
-        final_genomic_infos = [tree_genomic[i] for i in final_sample_ids]
+        tree_genomic_clinical_infos = {}
+        for node_id in list(nx.dfs_preorder_nodes(g, source=1)):
+            # get node and its child
+            node = g.node[node_id]
+            # if not leaf node then execute query
+            if node['type'] in ['and', 'or'] and 'clinical_node_ids' in node:
+                for clinical_node_id in node['clinical_node_ids']:
+                    clinical_node = g.node[clinical_node_id]
+                    for sample_id in final_sample_ids:
+                        if sample_id in tree_genomic and sample_id in node['matched_sample_ids'] and sample_id in clinical_node['matched_sample_ids']:
+                            for genomic_info in tree_genomic[sample_id]:
+                                if 'genomic_node_ids' in node:
+                                    for genomic_node_id in node['genomic_node_ids']:
+                                        genomic_alteration = self.get_genomic_alteration(g.node[genomic_node_id]['value'])
+                                        if genomic_info['genomic_alteration'] == genomic_alteration:
+                                            genomic_info['trial_oncotree_primary_diagnosis'] = clinical_node['value'][
+                                                'oncotree_primary_diagnosis']
+                                            genomic_info['trial_age_numerical'] = clinical_node['value']['age_numerical']
+                                            if sample_id not in tree_genomic_clinical_infos:
+                                                tree_genomic_clinical_infos[sample_id] = [copy.copy(genomic_info)]
+                                            else:
+                                                tree_genomic_clinical_infos[sample_id].append(copy.copy(genomic_info))
+                                elif clinical_node['has_genomic_nodes']:
+                                    for clinical_info in tree_clinical_with_genomic[sample_id]:
+                                        if clinical_info['trial_oncotree_primary_diagnosis'] == clinical_node['value'][
+                                            'oncotree_primary_diagnosis'] and clinical_info['trial_age_numerical'] == clinical_node['value']['age_numerical']:
+                                            genomic_info['trial_oncotree_primary_diagnosis'] = clinical_node['value'][
+                                                'oncotree_primary_diagnosis']
+                                            genomic_info['trial_age_numerical'] = clinical_node['value']['age_numerical']
+                                            if sample_id not in tree_genomic_clinical_infos:
+                                                tree_genomic_clinical_infos[sample_id] = [copy.copy(genomic_info)]
+                                            else:
+                                                tree_genomic_clinical_infos[sample_id].append(copy.copy(genomic_info))
 
-        for genomic_infos in final_genomic_infos:
-            sample_set = set()
+        final_infos = {}
+        for sample_id in final_sample_ids:
+            final_infos[sample_id] = []
+            if sample_id in tree_genomic_clinical_infos:
+                final_infos[sample_id] += self.remove_duplication(tree_genomic_clinical_infos[sample_id])
+            if sample_id in tree_clinical_only:
+                final_infos[sample_id] += self.remove_duplication(tree_clinical_only[sample_id])
+
+        return final_sample_ids, final_infos.values()
+
+    @staticmethod
+    def get_clinical_tree(node, tree_clinical, clinical_only):
+        for sample_id in node['matched_sample_ids']:
+            if sample_id not in tree_clinical:
+                tree_clinical[sample_id] = [{
+                    'clinical_only': clinical_only,
+                    'trial_age_numerical': node['value']['age_numerical'],
+                    'trial_oncotree_primary_diagnosis': node['value']['oncotree_primary_diagnosis'],
+                    'sample_id': sample_id
+                }]
+            else:
+                tree_clinical[sample_id].append({
+                    'clinical_only': clinical_only,
+                    'trial_age_numerical': node['value']['age_numerical'],
+                    'trial_oncotree_primary_diagnosis': node['value']['oncotree_primary_diagnosis'],
+                    'sample_id': sample_id
+                })
+        return tree_clinical
+
+    @staticmethod
+    def remove_duplication(items):
+        if len(items) > 1:
+            unique_items = set()
             pre_size = 0
-            for genomic_info in genomic_infos:
-                if 'genomic_id' in genomic_info:
-                    del genomic_info['genomic_id']
-                # Filter duplicate sample
-                sample_set.add(json.dumps(genomic_info))
-                if pre_size == len(sample_set):
+            for item in items:
+                unique_items.add(json.dumps(item))
+                if pre_size == len(unique_items):
                     # The string just added is a duplicate. Remove it from sample.
-                    genomic_infos.remove(genomic_info)
+                    items.remove(item)
                 else:
                     pre_size += 1
-
-        return final_sample_ids, final_genomic_infos
+        return items
 
     def prepare_clinical_criteria(self, item):
         """
@@ -595,7 +602,7 @@ class MatchEngine(object):
         c = {}
 
         # create the oncotree.
-        onco_tree = build_oncotree()
+        # onco_tree = build_oncotree()
 
         # only match by these keys
         map_keys = ["oncotree_primary_diagnosis", "age_numerical", "gender"]
@@ -616,7 +623,10 @@ class MatchEngine(object):
 
         # stolen Jimbo's code for adding all the oncotree nodes
         if 'ONCOTREE_PRIMARY_DIAGNOSIS_NAME' in c:
-            c['ONCOTREE_PRIMARY_DIAGNOSIS_NAME'] = self._search_oncotree_diagnosis(onco_tree, c)
+            # c['ONCOTREE_PRIMARY_DIAGNOSIS_NAME'] = self._search_oncotree_diagnosis(onco_tree, c)
+            c['ONCOTREE_PRIMARY_DIAGNOSIS_NAME'] = self.external_file_mapping(c)
+            if not c['ONCOTREE_PRIMARY_DIAGNOSIS_NAME']:
+                del c['ONCOTREE_PRIMARY_DIAGNOSIS_NAME']
 
         # translate yaml age restrictions into proper mongo query dates
         if 'BIRTH_DATE' in c:
@@ -681,6 +691,47 @@ class MatchEngine(object):
 
         return g, track_neg, track_sv
 
+    def prepare_oncokb_genomic_criteria(self, item):
+        """
+        Translates match criteria from yaml format into a Mongo query
+
+        :param item: The match tree criteria for a given node in yaml format
+        :return: Mongo query for genomic collection
+        """
+
+        g = {}
+        hugo_symbol, annotated_variant, track_neg = format_genomic_node(item)
+        match_type = 'MUTATION'
+
+        if hugo_symbol:
+            g['TRUE_HUGO_SYMBOL'] = hugo_symbol
+
+        # cna match
+        if annotated_variant.lower() in ['amplification', 'deletion']:
+            g['COPY_NUMBER_ALTERATIONS'] = annotated_variant
+            match_type = 'CNA'
+        # MSI-H match
+        elif annotated_variant.lower() == 'msi-h':
+            g['MMR_STATUS'] = 'Instable'
+            match_type = 'MMR_STATUS'
+        elif annotated_variant.lower() == 'wildtype':
+            track_neg = True
+            match_type = 'WILDTYPE'
+        # iterate 'oncokb_matched_results' list
+        elif hugo_symbol in self.oncokb_matched_result and self.oncokb_matched_result[hugo_symbol]:
+            hugo_matched_result = self.oncokb_matched_result[hugo_symbol]
+            if annotated_variant in hugo_matched_result:
+                if annotated_variant in hugo_matched_result[annotated_variant]:
+                    g['TRUE_PROTEIN_CHANGE'] = annotated_variant
+                else:
+                    g['TRUE_PROTEIN_CHANGE'] = {'$in': hugo_matched_result[annotated_variant]}
+            else:
+                g['TRUE_PROTEIN_CHANGE'] = annotated_variant
+        else:
+            g['TRUE_PROTEIN_CHANGE'] = annotated_variant
+
+        return g, track_neg, match_type
+
     def find_trial_matches(self):
         """
         Iterates through all match clauses of all trials located in the database and matches patients to trials
@@ -692,23 +743,26 @@ class MatchEngine(object):
         # all MRNs and trials in the database
         mrns = self.db.clinical.distinct('MRN')
         proj = {'protocol_no': 1, 'nct_id': 1, 'treatment_list': 1, '_summary': 1}
-        all_trials = list(self.db.trial.find({}, proj))
+        trial_ids = ["NCT02975934", "NCT02671435"]
+        all_trials = list(self.db.trial.find({"nct_id": {"$in": trial_ids}}, proj))
+        # all_trials = list(self.db.trial.find({}, proj))
 
         # create a map between sample id and MRN
         mrn_map = samples_from_mrns(self.db, mrns)
 
-        # initialize trial matches
-        trial_matches = []
-
         if self.match_method == 'oncokb':
+            self.oncotree = read_oncotree_file()
             self.oncokb_matched_result = oncokb_api_match(self.db, "genomic")
         # for all trials check for matches on the dose, arm, and step levels and keep track of what is found
         for trial in all_trials:
 
-            if 'protocol_no' in trial and trial['protocol_no']:
-                logging.info('Matching trial %s' % trial['protocol_no'])
-            else:
-                logging.info('Matching trial %s' % trial['nct_id'])
+            # if 'protocol_no' in trial and trial['protocol_no']:
+            #     logging.info('Matching trial %s' % trial['protocol_no'])
+            # else:
+            logging.info('Matching trial %s' % trial['nct_id'])
+
+            # initialize trial matches
+            trial_matches = []
 
             # If the trial is not open to accrual, all matches to all match trees in this trial will be marked closed
             trial_status = 'open'
@@ -735,20 +789,18 @@ class MatchEngine(object):
                                 if 'match' in dose and dose['match']:
                                     trial_matches = self._assess_match(mrn_map, trial_matches, trial, dose, 'dose', trial_status)
 
-        trial_matches_df = pd.DataFrame.from_dict(trial_matches)
+            trial_matches_df = pd.DataFrame.from_dict(trial_matches)
+            # add to db
+            logging.info('Adding trial matches to database: %s' % len(trial_matches))
+            add_matches(trial_matches_df, self.db)
 
         # force garbage collector to remove unused object after conversion to df
-        del trial_matches
+        # del trial_matches
         gc.collect()
 
-        # sort
-        # logging.info('Sorting trial matches.')
-        # trial_matches_df = add_sort_order(trial_match_df)
-        # logging.info('Number of trial matches: %s' % str(trial_match_df.shape[0]))
-
-        # add to db
-        logging.info('Adding trial matches to database')
-        add_matches(trial_matches_df, self.db)
+        # # add to db
+        # logging.info('Adding trial matches to database')
+        # add_matches(trial_matches_df, self.db)
 
     def _assess_match(self, mrn_map, trial_matches, trial, trial_segment, match_segment, trial_status):
         """
@@ -768,73 +820,78 @@ class MatchEngine(object):
         match_tree = self.create_match_tree(trial_segment['match'][0])
         sample_ids, ginfos = self.traverse_match_tree(match_tree)
 
-        clinical = []
-        if sample_ids:
-            cproj = {
-                    'SAMPLE_ID': 1,
-                    'ORD_PHYSICIAN_NAME': 1,
-                    'ORD_PHYSICIAN_EMAIL': 1,
-                    'ONCOTREE_PRIMARY_DIAGNOSIS_NAME': 1,
-                    'REPORT_DATE': 1,
-                    'VITAL_STATUS': 1,
-                    'FIRST_LAST': 1,
-                    'GENDER': 1,
-                    '_id': 1
-                }
-            clinical = list(self.db.clinical.find({'SAMPLE_ID': {'$in': list(sample_ids)}}, cproj))
+        # clinical = []
+        # if sample_ids:
+        #     cproj = {
+        #             'SAMPLE_ID': 1,
+        #             'VITAL_STATUS': 1,
+        #             'GENDER': 1,
+        #             '_id': 0
+        #         }
+        #     clinical = list(self.db.clinical.find({'SAMPLE_ID': {'$in': list(sample_ids)}}, cproj))
 
         # add to master list if any sample ids matched
+        nct_id = trial['nct_id']
+        protocol_no = trial['protocol_no'] if 'protocol_no' in trial else ''
         for sample in ginfos:
             for alteration in sample:
 
                 # add match document
                 match = alteration
-                if alteration['sample_id'] in mrn_map:
-                    match['mrn'] = mrn_map[alteration['sample_id']]
-                match['match_level'] = match_segment
+                # if alteration['sample_id'] in mrn_map:
+                match['mrn'] = mrn_map[alteration['sample_id']]
+                # match['match_level'] = match_segment
                 match['trial_accrual_status'] = trial_status
-                match['cancer_type_match'] = get_cancer_type_match(trial)
-                match['coordinating_center'] = get_coordinating_center(trial)
+                # match['cancer_type_match'] = get_cancer_type_match(trial)
+                # match['coordinating_center'] = get_coordinating_center(trial)
+                match['nct_id'] = nct_id
+                match['protocol_no'] = protocol_no
 
-                trial_keys = ['protocol_no', 'nct_id']
-                for trial_key in trial_keys:
-                    if trial_key in trial.keys():
-                        match[trial_key] = trial[trial_key]
+                # trial_keys = ['protocol_no', 'nct_id']
+                # for trial_key in trial_keys:
+                #     if trial_key in trial.keys():
+                #         match[trial_key] = trial[trial_key]
 
                 # copy clinical document
-                if clinical:
-                    for citem in clinical:
-                        if citem['SAMPLE_ID'] == alteration['sample_id']:
-                            for field in citem:
-                                if field == '_id':
-                                    match['clinical_id'] = citem[field]
-                                else:
-                                    match[field.lower()] = citem[field]
+                # if clinical:
+                #     for citem in clinical:
+                #         if citem['SAMPLE_ID'] == alteration['sample_id']:
+                #             for field in citem:
+                                # if field == '_id':
+                                #     match['clinical_id'] = citem[field]
+                                # else:
+                                #     match[field.lower()] = citem[field]
 
                 # add internal id
-                if match_segment == 'dose':
-                    if 'level_internal_id' in trial_segment:
-                        match['internal_id'] = str(trial_segment['level_internal_id'])
-                    if 'level_code' in trial_segment:
-                        match['code'] = trial_segment['level_code']
-                    if 'level_suspended' in trial_segment and trial_segment['level_suspended'].lower() == 'y':
-                        match['trial_accrual_status'] = 'closed'
-                elif match_segment == 'arm':
+                if match_segment == 'arm':
                     if 'arm_description' in trial_segment and trial_segment['arm_description']:
                         match['arm_description'] = str(trial_segment['arm_description'].encode('utf-8'))
-                    if 'arm_internal_id' in trial_segment:
-                        match['internal_id'] = str(trial_segment['arm_internal_id'].encode('utf-8'))
-                    if 'arm_code' in trial_segment:
-                        match['code'] = str(trial_segment['arm_code'].encode('utf-8'))
-                    if 'arm_suspended' in trial_segment and trial_segment['arm_suspended'].lower() == 'y':
-                        match['trial_accrual_status'] = 'closed'
                     if 'arm_type' in trial_segment and trial_segment['arm_type']:
                         match['arm_type'] = str(trial_segment['arm_type'])
-                elif match_segment == 'step':
-                    if 'step_internal_id' in trial_segment:
-                        match['internal_id'] = str(trial_segment['step_internal_id'])
-                    if 'step_code' in trial_segment:
-                        match['code'] = trial_segment['step_code']
+
+                # if match_segment == 'dose':
+                #     if 'level_internal_id' in trial_segment:
+                #         match['internal_id'] = str(trial_segment['level_internal_id'])
+                #     if 'level_code' in trial_segment:
+                #         match['code'] = trial_segment['level_code']
+                #     if 'level_suspended' in trial_segment and trial_segment['level_suspended'].lower() == 'y':
+                #         match['trial_accrual_status'] = 'closed'
+                # elif match_segment == 'arm':
+                #     if 'arm_description' in trial_segment and trial_segment['arm_description']:
+                #         match['arm_description'] = str(trial_segment['arm_description'].encode('utf-8'))
+                    # if 'arm_internal_id' in trial_segment:
+                    #     match['internal_id'] = str(trial_segment['arm_internal_id'].encode('utf-8'))
+                    # if 'arm_code' in trial_segment:
+                    #     match['code'] = str(trial_segment['arm_code'].encode('utf-8'))
+                    # if 'arm_suspended' in trial_segment and trial_segment['arm_suspended'].lower() == 'y':
+                    #     match['trial_accrual_status'] = 'closed'
+                #     if 'arm_type' in trial_segment and trial_segment['arm_type']:
+                #         match['arm_type'] = str(trial_segment['arm_type'])
+                # elif match_segment == 'step':
+                #     if 'step_internal_id' in trial_segment:
+                #         match['internal_id'] = str(trial_segment['step_internal_id'])
+                #     if 'step_code' in trial_segment:
+                #         match['code'] = trial_segment['step_code']
 
                 # add to trial_matches
                 trial_matches.append(match)
@@ -910,6 +967,36 @@ class MatchEngine(object):
 
         return tmpc['ONCOTREE_PRIMARY_DIAGNOSIS_NAME']
 
+    def get_oncotree_tumors(self, diagnosis):
+        if diagnosis == 'All Tumors':
+            # matched for all patients with any tumors
+            return ''
+        elif diagnosis in self.oncotree:
+            return self.oncotree[diagnosis]
+        else:
+            return diagnosis
+
+    def external_file_mapping(self, c):
+        tmpc = {'ONCOTREE_PRIMARY_DIAGNOSIS_NAME': {}}
+        for key in c['ONCOTREE_PRIMARY_DIAGNOSIS_NAME'].keys():
+
+            # loop through all diagnoses
+            diagnosis = c['ONCOTREE_PRIMARY_DIAGNOSIS_NAME'][key]
+            oncotree_diagnosis = self.get_oncotree_tumors(diagnosis)
+            if oncotree_diagnosis == '':
+                return tmpc['ONCOTREE_PRIMARY_DIAGNOSIS_NAME']
+
+            if key == '$eq':
+                if isinstance(oncotree_diagnosis, list):
+                    key = '$in'
+                tmpc['ONCOTREE_PRIMARY_DIAGNOSIS_NAME'][key] = oncotree_diagnosis
+            elif key == '$ne':
+                if isinstance(oncotree_diagnosis, list):
+                    key = '$nin'
+                tmpc['ONCOTREE_PRIMARY_DIAGNOSIS_NAME'][key] = oncotree_diagnosis
+
+        return tmpc['ONCOTREE_PRIMARY_DIAGNOSIS_NAME']
+
     def _recursive_create(self, parent_id, data, G):
         child_id_set = ['protocol_id', 'arm_internal_id', 'level_internal_id', 'step_internal_id']
         key_set = set(['treatment_list', 'step', 'arm', 'dose_level'])
@@ -934,7 +1021,6 @@ class MatchEngine(object):
             if key not in key_set:
                 # add the value.
                 G.node[cur_name][key] = value
-
 
         # Add children level nodes to tree recursively
         for key in data:
