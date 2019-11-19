@@ -531,7 +531,7 @@ class MatchEngine(object):
                                         if genomic_info['genomic_alteration'] == genomic_alteration:
                                             genomic_info['trial_oncotree_primary_diagnosis'] = clinical_node['value'][
                                                 'oncotree_primary_diagnosis']
-                                            genomic_info['trial_age_numerical'] = clinical_node['value']['age_numerical']
+                                            genomic_info['trial_age_numerical'] = clinical_node['value']['age_numerical'] if 'age_numerical' in clinical_node['value'] else ''
                                             if sample_id not in tree_genomic_clinical_infos:
                                                 tree_genomic_clinical_infos[sample_id] = [copy.copy(genomic_info)]
                                             else:
@@ -542,7 +542,7 @@ class MatchEngine(object):
                                             'oncotree_primary_diagnosis'] and clinical_info['trial_age_numerical'] == clinical_node['value']['age_numerical']:
                                             genomic_info['trial_oncotree_primary_diagnosis'] = clinical_node['value'][
                                                 'oncotree_primary_diagnosis']
-                                            genomic_info['trial_age_numerical'] = clinical_node['value']['age_numerical']
+                                            genomic_info['trial_age_numerical'] = clinical_node['value']['age_numerical'] if 'age_numerical' in clinical_node['value'] else ''
                                             if sample_id not in tree_genomic_clinical_infos:
                                                 tree_genomic_clinical_infos[sample_id] = [copy.copy(genomic_info)]
                                             else:
@@ -564,14 +564,14 @@ class MatchEngine(object):
             if sample_id not in tree_clinical:
                 tree_clinical[sample_id] = [{
                     'clinical_only': clinical_only,
-                    'trial_age_numerical': node['value']['age_numerical'],
+                    'trial_age_numerical': node['value']['age_numerical'] if 'age_numerical' in node['value'] else '',
                     'trial_oncotree_primary_diagnosis': node['value']['oncotree_primary_diagnosis'],
                     'sample_id': sample_id
                 }]
             else:
                 tree_clinical[sample_id].append({
                     'clinical_only': clinical_only,
-                    'trial_age_numerical': node['value']['age_numerical'],
+                    'trial_age_numerical': node['value']['age_numerical'] if 'age_numerical' in node['value'] else '',
                     'trial_oncotree_primary_diagnosis': node['value']['oncotree_primary_diagnosis'],
                     'sample_id': sample_id
                 })
@@ -713,7 +713,7 @@ class MatchEngine(object):
         # MSI-H match
         elif annotated_variant.lower() == 'msi-h':
             g['MMR_STATUS'] = 'Instable'
-            match_type = 'MMR_STATUS'
+            match_type = 'MSI'
         elif annotated_variant.lower() == 'wildtype':
             track_neg = True
             match_type = 'WILDTYPE'
@@ -743,9 +743,7 @@ class MatchEngine(object):
         # all MRNs and trials in the database
         mrns = self.db.clinical.distinct('MRN')
         proj = {'protocol_no': 1, 'nct_id': 1, 'treatment_list': 1, '_summary': 1}
-        trial_ids = ["NCT02975934", "NCT02671435"]
-        all_trials = list(self.db.trial.find({"nct_id": {"$in": trial_ids}}, proj))
-        # all_trials = list(self.db.trial.find({}, proj))
+        all_trials = list(self.db.trial.find({}, proj))
 
         # create a map between sample id and MRN
         mrn_map = samples_from_mrns(self.db, mrns)

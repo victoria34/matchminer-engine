@@ -530,7 +530,7 @@ def oncokb_api_match(db, collection_name):
     queries = list()
     annotated_variants = list()
     matched_results = {}
-    api_url = 'http://oncokb.org/api/private/utils/match/variant'
+    api_url = 'http://legacy.oncokb.org/api/private/utils/match/variant'
 
     # get genomic info from collection genomic or new_genomic
     genomic_proj = {
