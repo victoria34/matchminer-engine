@@ -718,7 +718,7 @@ class MatchEngine(object):
             track_neg = True
             match_type = 'WILDTYPE'
         # iterate 'oncokb_matched_results' list
-        elif hugo_symbol in self.oncokb_matched_result and self.oncokb_matched_result[hugo_symbol]:
+        if hugo_symbol in self.oncokb_matched_result and self.oncokb_matched_result[hugo_symbol]:
             hugo_matched_result = self.oncokb_matched_result[hugo_symbol]
             if annotated_variant in hugo_matched_result:
                 if annotated_variant in hugo_matched_result[annotated_variant]:

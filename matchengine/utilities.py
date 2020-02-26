@@ -530,23 +530,27 @@ def oncokb_api_match(db, collection_name):
     queries = list()
     annotated_variants = list()
     matched_results = {}
-    api_url = 'http://legacy.oncokb.org/api/private/utils/match/variant'
+    api_url = 'http://oncokb.org/api/private/utils/match/variant'
 
     # get genomic info from collection genomic or new_genomic
     genomic_proj = {
         'SAMPLE_ID': 1,
         'TRUE_HUGO_SYMBOL': 1,
-        'TRUE_PROTEIN_CHANGE': 1
+        'TRUE_PROTEIN_CHANGE': 1,
+        'COPY_NUMBER_ALTERATIONS': 1
     }
     genomic_collection = db[collection_name]
     genomic_results = list(genomic_collection.find({}, genomic_proj))
     queries_dic = {}
     annotated_variants_dic = {}
     for genomic in genomic_results:
-        if 'TRUE_HUGO_SYMBOL' in genomic and genomic['TRUE_HUGO_SYMBOL'] and 'TRUE_PROTEIN_CHANGE' in genomic and genomic['TRUE_PROTEIN_CHANGE']:
+        if 'TRUE_HUGO_SYMBOL' in genomic and genomic['TRUE_HUGO_SYMBOL']:
             if genomic['TRUE_HUGO_SYMBOL'] not in queries_dic:
                 queries_dic[genomic['TRUE_HUGO_SYMBOL']] = set()
-            queries_dic[genomic['TRUE_HUGO_SYMBOL']].add(genomic['TRUE_PROTEIN_CHANGE'])
+            if 'TRUE_PROTEIN_CHANGE' in genomic and genomic['TRUE_PROTEIN_CHANGE']:
+                queries_dic[genomic['TRUE_HUGO_SYMBOL']].add(genomic['TRUE_PROTEIN_CHANGE'])
+            if 'COPY_NUMBER_ALTERATIONS' in genomic and genomic['COPY_NUMBER_ALTERATIONS'] == 'Deletion':
+                queries_dic[genomic['TRUE_HUGO_SYMBOL']].add(genomic['COPY_NUMBER_ALTERATIONS'])
 
     # get genomic node info from collection trial
     steps = list(db.trial.find({'treatment_list.step': {'$exists': 'true', '$ne': []}}, {'_id': 0}))
@@ -586,7 +590,10 @@ def oncokb_api_match(db, collection_name):
         "queries": queries
     }
     body = json.dumps(body)
-    headers = {'Content-type': 'application/json'}
+    headers = {
+        'Content-type': 'application/json',
+        'Authorization': ''
+    }
     response = requests.post(api_url, data=body, headers=headers)
     result = response.json()
     for trial_match in result:

@@ -274,6 +274,9 @@ Esophagus/Stomach (STOMACH)	Gastrointestinal Neuroendocrine Tumors of the Esopha
 Esophagus/Stomach (STOMACH)	Mucosal Melanoma of the Esophagus (ESMM)						Melanoma	LightSkyBlue	C5707	C1333460
 Esophagus/Stomach (STOMACH)	Smooth Muscle Neoplasm, NOS (SMN)						Esophagogastric Cancer	LightSkyBlue
 Eye (EYE)							Eye Cancer, NOS	Green	C12401	C0015392
+Eye (EYE)	Lacrimal Gland Tumor (LGT)						Lacrimal Gland Tumor	Green
+Eye (EYE)	Lacrimal Gland Tumor (LGT)	Adenoid Cystic Carcinoma of the Lacrimal Gland (ACLG)					Lacrimal Gland Tumor	Green
+Eye (EYE)	Lacrimal Gland Tumor (LGT)	Squamous Cell Carcinoma of the Lacrimal Gland (SCLG)					Lacrimal Gland Tumor	Green
 Eye (EYE)	Ocular Melanoma (OM)						Melanoma	Green	C8562	C0558356
 Eye (EYE)	Ocular Melanoma (OM)	Conjunctival Melanoma (CM)					Melanoma	Green	C4550	C0346360
 Eye (EYE)	Ocular Melanoma (OM)	Uveal Melanoma (UM)					Melanoma	Green	C7712	C0220633
@@ -302,9 +305,13 @@ Head and Neck (HEAD_NECK)	Parathyroid Cancer (PTH)	Parathyroid Carcinoma (PTHC)	
 Head and Neck (HEAD_NECK)	Salivary Carcinoma (SACA)						Salivary Gland Cancer	DarkRed	C9272	C0948750
 Head and Neck (HEAD_NECK)	Salivary Carcinoma (SACA)	Acinic Cell Carcinoma (ACCC)					Salivary Gland Cancer	DarkRed	C3768	C0206685
 Head and Neck (HEAD_NECK)	Salivary Carcinoma (SACA)	Adenoid Cystic Carcinoma (ACYC)					Salivary Gland Cancer	DarkRed	C2970	C0010606
+Head and Neck (HEAD_NECK)	Salivary Carcinoma (SACA)	Basal Cell Adenocarcinoma (BCAC)					Salivary Gland Cancer	DarkRed
+Head and Neck (HEAD_NECK)	Salivary Carcinoma (SACA)	Carcinoma ex Pleomorphic Adenoma (CAEXPA)					Salivary Gland Cancer	DarkRed
 Head and Neck (HEAD_NECK)	Salivary Carcinoma (SACA)	Mammary Analogue Secretory Carcinoma of Salivary Gland Origin (HNMASC)					Salivary Gland Cancer	DarkRed
 Head and Neck (HEAD_NECK)	Salivary Carcinoma (SACA)	Mucoepidermoid Carcinoma (MUCC)					Salivary Gland Cancer	DarkRed	C3772	C0206694
 Head and Neck (HEAD_NECK)	Salivary Carcinoma (SACA)	Myoepithelial Carcinoma (MYEC)					Salivary Gland Cancer	DarkRed	C35700	C1335904
+Head and Neck (HEAD_NECK)	Salivary Carcinoma (SACA)	Pleomorphic Adenoma (PADA)					Salivary Gland Cancer	DarkRed
+Head and Neck (HEAD_NECK)	Salivary Carcinoma (SACA)	Polymorphous Adenocarcinoma (PAC)					Salivary Gland Cancer	DarkRed
 Head and Neck (HEAD_NECK)	Salivary Carcinoma (SACA)	Salivary Adenocarcinoma (SAAD)					Salivary Gland Cancer	DarkRed	C8021	C0279746
 Head and Neck (HEAD_NECK)	Salivary Carcinoma (SACA)	Salivary Carcinoma, Other (OSACA)					Salivary Gland Cancer	DarkRed
 Head and Neck (HEAD_NECK)	Salivary Carcinoma (SACA)	Salivary Duct Carcinoma (SDCA)					Salivary Gland Cancer	DarkRed	C5904	C1301194
@@ -726,6 +733,7 @@ Soft Tissue (SOFT_TISSUE)	Aggressive Angiomyxoma (AA)						Soft Tissue Sarcoma	L
 Soft Tissue (SOFT_TISSUE)	Alveolar Soft Part Sarcoma (ASPS)						Soft Tissue Sarcoma	LightYellow	C3750	C0206657
 Soft Tissue (SOFT_TISSUE)	Angiomatoid Fibrous Histiocytoma (AFH)						Angiomatoid Fibrous Histiocytoma	LightYellow
 Soft Tissue (SOFT_TISSUE)	Angiosarcoma (ANGS)						Soft Tissue Sarcoma	LightYellow	C3088	C0018923
+Soft Tissue (SOFT_TISSUE)	Atypical Lipomatous Tumor (ALT)						Soft Tissue Sarcoma	LightYellow
 Soft Tissue (SOFT_TISSUE)	Clear Cell Sarcoma (CCS)						Soft Tissue Sarcoma	LightYellow	C3745	C0206651
 Soft Tissue (SOFT_TISSUE)	Dendritic Cell Sarcoma (DCS)						Soft Tissue Sarcoma	LightYellow	C9294	C1334030
 Soft Tissue (SOFT_TISSUE)	Dendritic Cell Sarcoma (DCS)	Histiocytic Dendritic Cell Sarcoma (HDCS)					Soft Tissue Sarcoma	LightYellow	C27349	C0334663
