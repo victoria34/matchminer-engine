@@ -11,7 +11,6 @@ import pandas as pd
 import datetime as dt
 from pymongo import MongoClient
 
-import matchengine.oncotreenx as oncotreenx
 from matchengine.settings import months, TUMOR_TREE, mmr_map, mmr_map_rev
 
 
@@ -388,7 +387,7 @@ def add_matches(trial_matches_df, db):
             lambda x: dt.datetime.strftime(x, '%Y-%m-%d %X') if pd.notnull(x) else x)
 
     if len(trial_matches_df.index) > 0:
-        # db.trial_match.drop()
+        db.trial_match.drop()
         for i in range(0, trial_matches_df.shape[0], 1000):
             records = json.loads(trial_matches_df[i:i + 1000].T.to_json()).values()
             db.trial_match.insert_many(records)
