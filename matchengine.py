@@ -13,7 +13,7 @@ import datetime as dt
 from pymongo import ASCENDING
 
 from matchengine.engine import MatchEngine
-from matchengine.utilities import get_db
+from matchengine.utilities import get_db, process_cmd
 
 MONGO_URI = ""
 MONGO_DBNAME = "matchminer"
@@ -27,7 +27,7 @@ MATCH_FIELDS = "mrn,sample_id,first_last,protocol_no,nct_id,genomic_alteration,t
 
 class Trial:
 
-    def __init__(self, db):
+    def __init__(self, db, args):
 
         self.db = db
         self.load_dict = {
@@ -35,6 +35,7 @@ class Trial:
             'bson': self.bson_to_mongo,
             'json': self.json_to_mongo
         }
+        self.mongo_uri = args.mongo_uri
 
     def yaml_to_mongo(self, yml):
         """
@@ -58,41 +59,44 @@ class Trial:
         else:
             add_trial(yml, self.db)
 
-    @staticmethod
-    def bson_to_mongo(bson):
+    def bson_to_mongo(self, bson):
         """
         If you specify the path to a directory, all files with extension BSON will be added to MongoDB.
         If you specify the path to a specific BSON file, it will add that file to MongoDB.
 
         :param bson: Path to BSON file.
         """
-        cmd = "mongorestore --host localhost:27017 --db matchminer %s" % bson
+        cmd = process_cmd('mongorestore', self.mongo_uri, bson)
         subprocess.call(cmd.split(' '))
 
-    @staticmethod
-    def json_to_mongo(json):
+    def json_to_mongo(self, json):
         """
         If you specify the path to a directory, all files with extension JSON will be added to MongoDB.
         If you specify the path to a specific JSON file, it will add that file to MongoDB.
 
         :param json: Path to JSON file.
         """
-        cmd = "mongoimport --host localhost:27017 --db matchminer --collection trial --file %s" % json
+        upsert = {
+            'is_upsert': True,
+            'fields': ['nct_id']
+        }
+        cmd = process_cmd('mongoimport', self.mongo_uri, json, collection='trial', upsert=upsert, is_json_array=False)
         subprocess.call(cmd.split(' '))
-
 
 class Patient:
 
-    def __init__(self, db):
+    def __init__(self, db, args):
 
         self.db = db
         self.load_dict = {
             'csv': self.load_csv,
             'pkl': self.load_pkl,
-            'bson': self.load_bson
+            'bson': self.load_bson,
+            'json': self.load_json
         }
         self.clinical_df = None
         self.genomic_df = None
+        self.mongo_uri = args.mongo_uri
 
     def load_csv(self, clinical, genomic):
         """Load CSV file into a Pandas dataframe"""
@@ -104,15 +108,43 @@ class Patient:
         self.clinical_df = pd.read_pickle(clinical)
         self.genomic_df = pd.read_pickle(genomic)
 
-    @staticmethod
-    def load_bson(clinical, genomic):
+    def load_bson(self, clinical, genomic):
         """Load bson file into MongoDB"""
-        cmd1 = "mongorestore --host localhost:27017 --db matchminer %s" % clinical
-        cmd2 = "mongorestore --host localhost:27017 --db matchminer %s" % genomic
+        cmd1 = process_cmd('mongorestore', self.mongo_uri, clinical)
+        cmd2 = process_cmd('mongorestore', self.mongo_uri, genomic)
         subprocess.call(cmd1.split(' '))
         subprocess.call(cmd2.split(' '))
         return True
 
+    def load_json(self, clinical, genomic):
+        """
+        If you specify the path to a directory, all files with extension JSON will be added to MongoDB.
+        If you specify the path to a specific JSON file, it will add that file to MongoDB.
+        :param json: Path to JSON file.
+        Note: For the empty fields in genomic data, their values should be null rather than "".
+              For the false fields in genomic data, their values should be false rather than "false".
+              For the date fields in clinical data, the type of their values should be date object rather than string.
+        """
+        clinical_upsert = {
+            'is_upsert': False,
+            'fields': ['PATIENT_ID']
+        }
+
+        cmd1 = process_cmd('mongoimport', self.mongo_uri, clinical, collection='clinical', is_json_array=True)
+        cmd2 = process_cmd('mongoimport', self.mongo_uri, genomic, collection='genomic', is_json_array=True)
+        subprocess.call(cmd1.split(' '))
+        subprocess.call(cmd2.split(' '))
+
+        # convert string to date object
+        cols = ['BIRTH_DATE']
+        for clinical_item in list(self.db.clinical.find()):
+            for col in cols:
+                if type(clinical_item[col]) is not dt.datetime:
+                    clinical_item[col] = dt.datetime.strptime(str(clinical_item[col]), '%Y-%m-%d')
+                    clinical_item[col] = dt.datetime.strptime(str(clinical_item[col]), '%Y-%m-%d %X')
+                    self.db.clinical.update({'_id':clinical_item['_id']}, {"$set": {col: clinical_item[col]}}, upsert=False)
+
+        return True
 
 def load(args):
     """
@@ -155,8 +187,8 @@ def load(args):
     """
 
     db = get_db(args.mongo_uri)
-    t = Trial(db)
-    p = Patient(db)
+    t = Trial(db, args)
+    p = Patient(db, args)
 
     # Add trials to mongo
     if args.trials:
@@ -166,9 +198,9 @@ def load(args):
     # Add patient data to mongo
     if args.clinical and args.genomic:
         logging.info('Reading data into pandas...')
-        is_bson = p.load_dict[args.patient_format](args.clinical, args.genomic)
+        is_bson_or_json = p.load_dict[args.patient_format](args.clinical, args.genomic)
 
-        if not is_bson:
+        if not is_bson_or_json:
 
             # reformatting
             for col in ['BIRTH_DATE', 'REPORT_DATE']:
@@ -194,23 +226,11 @@ def load(args):
 
             db.clinical.insert(clinical_json)
 
-            # Get clinical ids from mongo
-            logging.info('Adding clinical ids to genomic data...')
-            clinical_doc = list(db.clinical.find({}, {"_id": 1, "SAMPLE_ID": 1}))
-            clinical_dict = dict(zip([i['SAMPLE_ID'] for i in clinical_doc], [i['_id'] for i in clinical_doc]))
-
             # pd -> json
             if args.trial_format == 'pkl':
                 genomic_json = json.loads(p.genomic_df.to_json(orient='records'))
             else:
                 genomic_json = json.loads(p.genomic_df.T.to_json()).values()
-
-            # Map clinical ids to genomic data
-            for item in genomic_json:
-                if item['SAMPLE_ID'] in clinical_dict:
-                    item["CLINICAL_ID"] = clinical_dict[item['SAMPLE_ID']]
-                else:
-                    item["CLINICAL_ID"] = None
 
             # Add genomic data to mongo
             logging.info('Adding genomic data to mongo...')
@@ -223,7 +243,6 @@ def load(args):
     elif args.clinical and not args.genomic or args.genomic and not args.clinical:
         logging.error('If loading patient information, please provide both clinical and genomic data.')
         sys.exit(1)
-
 
 def add_trial(yml, db):
     """
@@ -255,7 +274,7 @@ def match(args):
     db = get_db(args.mongo_uri)
 
     while True:
-        me = MatchEngine(db)
+        me = MatchEngine(db, args.match_method)
         me.find_trial_matches()
 
         # exit if it is not set to run as a nightly automated daemon, otherwise sleep for a day
@@ -299,6 +318,8 @@ if __name__ == '__main__':
     param_outpath_help = 'Destination and name of your results file.'
     param_trial_format_help = 'File format of input trial data. Default is YML.'
     param_patient_format_help = 'File format of input patient data (both clinical and genomic files). Default is CSV.'
+    param_match_method_help = 'Match method name used to call specific matching criteria from different institutes. ' \
+                              'The default is oncokb and uses oncokb_match().'
 
     # mode parser.
     main_p = argparse.ArgumentParser()
@@ -320,13 +341,14 @@ if __name__ == '__main__':
                         dest='patient_format',
                         default='csv',
                         action='store',
-                        choices=['csv', 'pkl', 'bson'],
+                        choices=['csv', 'pkl', 'bson', 'json'],
                         help=param_patient_format_help)
     subp_p.set_defaults(func=load)
 
     # match
     subp_p = subp.add_parser('match', help='Matches all trials in database to patients')
     subp_p.add_argument('--mongo-uri', dest='mongo_uri', required=False, default=None, help=param_mongo_uri_help)
+    subp_p.add_argument('--match-method', dest="match_method", required=False, default="", help=param_match_method_help)
     subp_p.add_argument('--daemon', dest="daemon", required=False, action="store_true", help=param_daemon_help)
     subp_p.add_argument('--json', dest="json_format", required=False, action="store_true", help=param_json_help)
     subp_p.add_argument('--csv', dest="csv_format", required=False, action="store_true", help=param_csv_help)
