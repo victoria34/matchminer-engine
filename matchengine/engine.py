@@ -3,14 +3,11 @@
 from cerberus1 import schema_registry
 import networkx as nx
 import gc
-import logging
 import copy
-import json
 
 from matchengine import schema
 from matchengine.validation import ConsentValidatorCerberus
 from matchengine.utilities import *
-from matchengine.sort import add_sort_order
 
 # logging
 logging.basicConfig(level=logging.DEBUG, format='[%(levelname)s] %(asctime)s: %(message)s', )
@@ -754,9 +751,6 @@ class MatchEngine(object):
         # for all trials check for matches on the dose, arm, and step levels and keep track of what is found
         for trial in all_trials:
 
-            # if 'protocol_no' in trial and trial['protocol_no']:
-            #     logging.info('Matching trial %s' % trial['protocol_no'])
-            # else:
             logging.info('Matching trial %s' % trial['nct_id'])
 
             # initialize trial matches
@@ -788,16 +782,16 @@ class MatchEngine(object):
                                     trial_matches = self._assess_match(mrn_map, trial_matches, trial, dose, 'dose', trial_status)
 
             trial_matches_df = pd.DataFrame.from_dict(trial_matches)
-            # add to db
+            # add matched result of each trial to db
             logging.info('Adding trial matches to database: %s' % len(trial_matches))
             add_matches(trial_matches_df, self.db)
 
         # force garbage collector to remove unused object after conversion to df
-        # del trial_matches
+        del trial_matches
         gc.collect()
 
         # # add to db
-        # logging.info('Adding trial matches to database')
+        # logging.info('Adding all trial matches to database')
         # add_matches(trial_matches_df, self.db)
 
     def _assess_match(self, mrn_map, trial_matches, trial, trial_segment, match_segment, trial_status):
@@ -818,16 +812,6 @@ class MatchEngine(object):
         match_tree = self.create_match_tree(trial_segment['match'][0])
         sample_ids, ginfos = self.traverse_match_tree(match_tree)
 
-        # clinical = []
-        # if sample_ids:
-        #     cproj = {
-        #             'SAMPLE_ID': 1,
-        #             'VITAL_STATUS': 1,
-        #             'GENDER': 1,
-        #             '_id': 0
-        #         }
-        #     clinical = list(self.db.clinical.find({'SAMPLE_ID': {'$in': list(sample_ids)}}, cproj))
-
         # add to master list if any sample ids matched
         nct_id = trial['nct_id']
         protocol_no = trial['protocol_no'] if 'protocol_no' in trial else ''
@@ -836,29 +820,10 @@ class MatchEngine(object):
 
                 # add match document
                 match = alteration
-                # if alteration['sample_id'] in mrn_map:
                 match['mrn'] = mrn_map[alteration['sample_id']]
-                # match['match_level'] = match_segment
                 match['trial_accrual_status'] = trial_status
-                # match['cancer_type_match'] = get_cancer_type_match(trial)
-                # match['coordinating_center'] = get_coordinating_center(trial)
                 match['nct_id'] = nct_id
                 match['protocol_no'] = protocol_no
-
-                # trial_keys = ['protocol_no', 'nct_id']
-                # for trial_key in trial_keys:
-                #     if trial_key in trial.keys():
-                #         match[trial_key] = trial[trial_key]
-
-                # copy clinical document
-                # if clinical:
-                #     for citem in clinical:
-                #         if citem['SAMPLE_ID'] == alteration['sample_id']:
-                #             for field in citem:
-                                # if field == '_id':
-                                #     match['clinical_id'] = citem[field]
-                                # else:
-                                #     match[field.lower()] = citem[field]
 
                 # add internal id
                 if match_segment == 'arm':
@@ -866,30 +831,6 @@ class MatchEngine(object):
                         match['arm_description'] = str(trial_segment['arm_description'].encode('utf-8'))
                     if 'arm_type' in trial_segment and trial_segment['arm_type']:
                         match['arm_type'] = str(trial_segment['arm_type'])
-
-                # if match_segment == 'dose':
-                #     if 'level_internal_id' in trial_segment:
-                #         match['internal_id'] = str(trial_segment['level_internal_id'])
-                #     if 'level_code' in trial_segment:
-                #         match['code'] = trial_segment['level_code']
-                #     if 'level_suspended' in trial_segment and trial_segment['level_suspended'].lower() == 'y':
-                #         match['trial_accrual_status'] = 'closed'
-                # elif match_segment == 'arm':
-                #     if 'arm_description' in trial_segment and trial_segment['arm_description']:
-                #         match['arm_description'] = str(trial_segment['arm_description'].encode('utf-8'))
-                    # if 'arm_internal_id' in trial_segment:
-                    #     match['internal_id'] = str(trial_segment['arm_internal_id'].encode('utf-8'))
-                    # if 'arm_code' in trial_segment:
-                    #     match['code'] = str(trial_segment['arm_code'].encode('utf-8'))
-                    # if 'arm_suspended' in trial_segment and trial_segment['arm_suspended'].lower() == 'y':
-                    #     match['trial_accrual_status'] = 'closed'
-                #     if 'arm_type' in trial_segment and trial_segment['arm_type']:
-                #         match['arm_type'] = str(trial_segment['arm_type'])
-                # elif match_segment == 'step':
-                #     if 'step_internal_id' in trial_segment:
-                #         match['internal_id'] = str(trial_segment['step_internal_id'])
-                #     if 'step_code' in trial_segment:
-                #         match['code'] = trial_segment['step_code']
 
                 # add to trial_matches
                 trial_matches.append(match)

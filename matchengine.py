@@ -136,13 +136,8 @@ class Patient:
         subprocess.call(cmd2.split(' '))
 
         # convert string to date object
+        cols = ['BIRTH_DATE']
         for clinical_item in list(self.db.clinical.find()):
-            cols = list()
-            keys = clinical_item.keys()
-            if 'BIRTH_DATE' in keys:
-                cols.append('BIRTH_DATE')
-            if 'REPORT_DATE' in keys:
-                cols.append('REPORT_DATE')
             for col in cols:
                 if type(clinical_item[col]) is not dt.datetime:
                     clinical_item[col] = dt.datetime.strptime(str(clinical_item[col]), '%Y-%m-%d')
@@ -231,23 +226,11 @@ def load(args):
 
             db.clinical.insert(clinical_json)
 
-            # Get clinical ids from mongo
-            # logging.info('Adding clinical ids to genomic data...')
-            # clinical_doc = list(db.clinical.find({}, {"_id": 1, "SAMPLE_ID": 1}))
-            # clinical_dict = dict(zip([i['SAMPLE_ID'] for i in clinical_doc], [i['_id'] for i in clinical_doc]))
-
             # pd -> json
             if args.trial_format == 'pkl':
                 genomic_json = json.loads(p.genomic_df.to_json(orient='records'))
             else:
                 genomic_json = json.loads(p.genomic_df.T.to_json()).values()
-
-            # Map clinical ids to genomic data
-            # for item in genomic_json:
-            #     if item['SAMPLE_ID'] in clinical_dict:
-            #         item["CLINICAL_ID"] = clinical_dict[item['SAMPLE_ID']]
-            #     else:
-            #         item["CLINICAL_ID"] = None
 
             # Add genomic data to mongo
             logging.info('Adding genomic data to mongo...')
@@ -335,7 +318,8 @@ if __name__ == '__main__':
     param_outpath_help = 'Destination and name of your results file.'
     param_trial_format_help = 'File format of input trial data. Default is YML.'
     param_patient_format_help = 'File format of input patient data (both clinical and genomic files). Default is CSV.'
-    param_match_method_help = 'Match method name. The default is oncokb and uses oncokb_match().'
+    param_match_method_help = 'Match method name used to call specific matching criteria from different institutes. ' \
+                              'The default is oncokb and uses oncokb_match().'
 
     # mode parser.
     main_p = argparse.ArgumentParser()
