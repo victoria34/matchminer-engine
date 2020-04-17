@@ -11,7 +11,7 @@ import pandas as pd
 import datetime as dt
 from pymongo import MongoClient
 
-from matchengine.settings import months, TUMOR_TREE, mmr_map, mmr_map_rev
+from matchengine.settings import months, ONCOTREE_MAPPING, ONCOKB_URL, ONCOKB_TOKEN, TUMOR_TREE, mmr_map, mmr_map_rev
 
 
 def build_gquery(field, txt):
@@ -525,11 +525,13 @@ def oncokb_api_match(db, collection_name):
       }
     }
     """
+    if not ONCOKB_TOKEN:
+        logging.error("ONCOKB not set in settings.py. Please go to OncoKB.org to get an OncoKB Token first.")
+        sys.exit(1)
 
     queries = list()
     annotated_variants = list()
     matched_results = {}
-    api_url = 'http://oncokb.org/api/private/utils/match/variant'
 
     # get genomic info from collection genomic or new_genomic
     genomic_proj = {
@@ -591,9 +593,9 @@ def oncokb_api_match(db, collection_name):
     body = json.dumps(body)
     headers = {
         'Content-type': 'application/json',
-        'Authorization': ''
+        'Authorization': ONCOKB_TOKEN
     }
-    response = requests.post(api_url, data=body, headers=headers)
+    response = requests.post(ONCOKB_URL, data=body, headers=headers)
     result = response.json()
     for trial_match in result:
         if trial_match['result']:
@@ -696,7 +698,7 @@ def process_cmd(type, uri, file, collection=None, upsert=None, is_json_array=Fal
 
 
 def read_oncotree_file():
-    with open('oncotree_mapping.json', 'r') as oncotree_file:
+    with open(ONCOTREE_MAPPING, 'r') as oncotree_file:
         oncotree_data = json.load(oncotree_file)
         return oncotree_data
 

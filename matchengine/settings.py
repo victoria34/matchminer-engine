@@ -9,6 +9,7 @@ import logging
 logging.basicConfig(level=logging.DEBUG, format='[%(levelname)s] %(message)s', )
 
 TUMOR_TREE = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data/tumor_tree.txt'))
+ONCOTREE_MAPPING = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data/oncotree_mapping.json'))
 
 months = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -16,6 +17,9 @@ months = [
 ]
 
 MONGO_URI = "mongodb://localhost:27017/matchminer?replicaSet=rs0"
+
+ONCOKB_URL = "http://oncokb.org/api/private/utils/match/variant"
+ONCOKB_TOKEN = ""
 
 uri_check = os.getenv("MONGO_URI", None)
 if uri_check:
